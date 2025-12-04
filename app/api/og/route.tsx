@@ -48,18 +48,11 @@ export async function GET(req: NextRequest) {
             >
               <div
                 style={{
-                  width: '48px',
-                  height: '48px',
-                  background: '#10b981',
-                  borderRadius: '12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '28px',
-                  fontWeight: 'bold',
+                  fontSize: '48px',
+                  marginRight: '8px',
                 }}
               >
-                C
+                🌙💥
               </div>
               <h1
                 style={{
@@ -68,7 +61,7 @@ export async function GET(req: NextRequest) {
                   color: 'white',
                 }}
               >
-                CastPredict
+                Moon or Doom
               </h1>
             </div>
 
@@ -98,12 +91,13 @@ export async function GET(req: NextRequest) {
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      background: 'rgba(34, 197, 94, 0.2)',
+                      background: 'rgba(52, 211, 153, 0.2)',
                       padding: '30px 60px',
                       borderRadius: '16px',
+                      border: '2px solid rgba(52, 211, 153, 0.3)',
                     }}
                   >
-                    <span style={{ fontSize: '48px', color: '#22c55e' }}>YES</span>
+                    <span style={{ fontSize: '48px', color: '#34D399' }}>MOON</span>
                     <span style={{ fontSize: '56px', fontWeight: 'bold', color: 'white' }}>
                       {yesOdds}%
                     </span>
@@ -114,12 +108,13 @@ export async function GET(req: NextRequest) {
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      background: 'rgba(239, 68, 68, 0.2)',
+                      background: 'rgba(251, 113, 133, 0.2)',
                       padding: '30px 60px',
                       borderRadius: '16px',
+                      border: '2px solid rgba(251, 113, 133, 0.3)',
                     }}
                   >
-                    <span style={{ fontSize: '48px', color: '#ef4444' }}>NO</span>
+                    <span style={{ fontSize: '48px', color: '#FB7185' }}>DOOM</span>
                     <span style={{ fontSize: '56px', fontWeight: 'bold', color: 'white' }}>
                       {noOdds}%
                     </span>

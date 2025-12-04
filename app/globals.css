@@ -3,6 +3,8 @@
 :root {
   --background: #000000;
   --foreground: #ffffff;
+  --electric-mint: #34D399;
+  --electric-rose: #FB7185;
 }
 
 @theme inline {

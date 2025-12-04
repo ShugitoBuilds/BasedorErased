@@ -18,7 +18,10 @@ export const metadata: Metadata = {
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-black text-white font-[family-name:var(--font-body)]">
+    <main
+      className="min-h-screen text-white font-[family-name:var(--font-body)]"
+      style={{ background: 'radial-gradient(circle at center, #0a0a0a 0%, #000000 100%)' }}
+    >
       {/* Header */}
       <div className="border-b border-zinc-800/50 backdrop-blur-sm sticky top-0 z-50 bg-black/80">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -40,68 +43,148 @@ export default function Home() {
       </div>
 
       {/* Hero */}
-      <div className="max-w-7xl mx-auto px-6 py-16 md:py-24">
+      <div className="max-w-7xl mx-auto px-6 py-24 md:py-32">
         <div className="max-w-5xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-500/5 border border-emerald-500/20 rounded-full text-emerald-400 text-sm mb-8 font-[family-name:var(--font-mono)] uppercase tracking-wider">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 border rounded-full text-sm mb-10 font-[family-name:var(--font-mono)] uppercase tracking-wider" style={{ background: 'rgba(52, 211, 153, 0.05)', borderColor: 'rgba(52, 211, 153, 0.2)', color: '#34D399' }}>
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: '#34D399' }}></span>
+              <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: '#34D399' }}></span>
             </span>
             Live
           </div>
 
-          <h1 className="text-6xl md:text-8xl font-bold mb-8 tracking-tighter font-[family-name:var(--font-heading)] leading-[0.9]">
-            Will it <span className="text-emerald-400">MOON</span>
+          <h1 className="text-6xl md:text-8xl font-bold mb-10 tracking-tighter font-[family-name:var(--font-heading)] leading-[0.9]">
+            Will it{' '}
+            <span
+              className="inline-block"
+              style={{
+                background: 'linear-gradient(135deg, #34D399 0%, #10B981 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                filter: 'drop-shadow(0 0 20px rgba(52, 211, 153, 0.4))',
+              }}
+            >
+              MOON
+            </span>
             <br />
-            or <span className="text-red-500">DOOM</span>?
+            or{' '}
+            <span
+              className="inline-block"
+              style={{
+                background: 'linear-gradient(135deg, #FB7185 0%, #F43F5E 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                filter: 'drop-shadow(0 0 20px rgba(251, 113, 133, 0.4))',
+              }}
+            >
+              DOOM
+            </span>
+            ?
           </h1>
 
-          <p className="text-xl md:text-2xl text-zinc-400 mb-16 max-w-2xl font-[family-name:var(--font-body)]">
+          <p className="text-xl md:text-2xl text-zinc-400 mb-20 max-w-2xl font-[family-name:var(--font-body)]">
             Bet on Farcaster engagement. Trade virality. Win when you're right.
           </p>
 
           {/* Example Markets */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-16">
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 hover:border-emerald-500/30 hover:bg-zinc-900 transition-all group">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-20">
+            <div
+              className="border rounded-xl p-6 transition-all duration-300 group hover:-translate-y-1 hover:border-[rgba(52,211,153,0.5)]"
+              style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                backdropFilter: 'blur(10px)',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+              }}
+            >
               <div className="text-zinc-500 text-xs mb-3 font-[family-name:var(--font-mono)] uppercase tracking-wider">Market 001</div>
               <div className="font-semibold mb-4 font-[family-name:var(--font-heading)]">100 likes in 24h?</div>
               <div className="flex gap-3">
-                <div className="flex-1 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3 text-center group-hover:bg-emerald-500/20 transition-colors">
-                  <div className="text-emerald-400 text-xs font-[family-name:var(--font-mono)] mb-1">MOON</div>
+                <div
+                  className="flex-1 border rounded-lg p-3 text-center transition-all"
+                  style={{
+                    background: 'rgba(52, 211, 153, 0.1)',
+                    borderColor: 'rgba(52, 211, 153, 0.3)',
+                  }}
+                >
+                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#34D399' }}>MOON</div>
                   <div className="text-2xl font-bold font-[family-name:var(--font-mono)]">65<span className="text-sm">%</span></div>
                 </div>
-                <div className="flex-1 bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center group-hover:bg-red-500/20 transition-colors">
-                  <div className="text-red-400 text-xs font-[family-name:var(--font-mono)] mb-1">DOOM</div>
+                <div
+                  className="flex-1 border rounded-lg p-3 text-center transition-all"
+                  style={{
+                    background: 'rgba(251, 113, 133, 0.1)',
+                    borderColor: 'rgba(251, 113, 133, 0.3)',
+                  }}
+                >
+                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#FB7185' }}>DOOM</div>
                   <div className="text-2xl font-bold font-[family-name:var(--font-mono)]">35<span className="text-sm">%</span></div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 hover:border-emerald-500/30 hover:bg-zinc-900 transition-all group">
+            <div
+              className="border rounded-xl p-6 transition-all duration-300 group hover:-translate-y-1 hover:border-[rgba(52,211,153,0.5)]"
+              style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                backdropFilter: 'blur(10px)',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+              }}
+            >
               <div className="text-zinc-500 text-xs mb-3 font-[family-name:var(--font-mono)] uppercase tracking-wider">Market 002</div>
               <div className="font-semibold mb-4 font-[family-name:var(--font-heading)]">@vitalik replies?</div>
               <div className="flex gap-3">
-                <div className="flex-1 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3 text-center group-hover:bg-emerald-500/20 transition-colors">
-                  <div className="text-emerald-400 text-xs font-[family-name:var(--font-mono)] mb-1">MOON</div>
+                <div
+                  className="flex-1 border rounded-lg p-3 text-center transition-all"
+                  style={{
+                    background: 'rgba(52, 211, 153, 0.1)',
+                    borderColor: 'rgba(52, 211, 153, 0.3)',
+                  }}
+                >
+                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#34D399' }}>MOON</div>
                   <div className="text-2xl font-bold font-[family-name:var(--font-mono)]">12<span className="text-sm">%</span></div>
                 </div>
-                <div className="flex-1 bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center group-hover:bg-red-500/20 transition-colors">
-                  <div className="text-red-400 text-xs font-[family-name:var(--font-mono)] mb-1">DOOM</div>
+                <div
+                  className="flex-1 border rounded-lg p-3 text-center transition-all"
+                  style={{
+                    background: 'rgba(251, 113, 133, 0.1)',
+                    borderColor: 'rgba(251, 113, 133, 0.3)',
+                  }}
+                >
+                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#FB7185' }}>DOOM</div>
                   <div className="text-2xl font-bold font-[family-name:var(--font-mono)]">88<span className="text-sm">%</span></div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 hover:border-emerald-500/30 hover:bg-zinc-900 transition-all group">
+            <div
+              className="border rounded-xl p-6 transition-all duration-300 group hover:-translate-y-1 hover:border-[rgba(52,211,153,0.5)]"
+              style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                backdropFilter: 'blur(10px)',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+              }}
+            >
               <div className="text-zinc-500 text-xs mb-3 font-[family-name:var(--font-mono)] uppercase tracking-wider">Market 003</div>
               <div className="font-semibold mb-4 font-[family-name:var(--font-heading)]">Goes viral?</div>
               <div className="flex gap-3">
-                <div className="flex-1 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3 text-center group-hover:bg-emerald-500/20 transition-colors">
-                  <div className="text-emerald-400 text-xs font-[family-name:var(--font-mono)] mb-1">MOON</div>
+                <div
+                  className="flex-1 border rounded-lg p-3 text-center transition-all"
+                  style={{
+                    background: 'rgba(52, 211, 153, 0.1)',
+                    borderColor: 'rgba(52, 211, 153, 0.3)',
+                  }}
+                >
+                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#34D399' }}>MOON</div>
                   <div className="text-2xl font-bold font-[family-name:var(--font-mono)]">42<span className="text-sm">%</span></div>
                 </div>
-                <div className="flex-1 bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center group-hover:bg-red-500/20 transition-colors">
-                  <div className="text-red-400 text-xs font-[family-name:var(--font-mono)] mb-1">DOOM</div>
+                <div
+                  className="flex-1 border rounded-lg p-3 text-center transition-all"
+                  style={{
+                    background: 'rgba(251, 113, 133, 0.1)',
+                    borderColor: 'rgba(251, 113, 133, 0.3)',
+                  }}
+                >
+                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#FB7185' }}>DOOM</div>
                   <div className="text-2xl font-bold font-[family-name:var(--font-mono)]">58<span className="text-sm">%</span></div>
                 </div>
               </div>
@@ -109,11 +192,25 @@ export default function Home() {
           </div>
 
           {/* How It Works */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8">
-            <h2 className="text-2xl font-bold mb-6">How It Works</h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div
+            className="border rounded-2xl p-8 md:p-10"
+            style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              backdropFilter: 'blur(10px)',
+              borderColor: 'rgba(255, 255, 255, 0.1)',
+            }}
+          >
+            <h2 className="text-2xl md:text-3xl font-bold mb-8">How It Works</h2>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               <div>
-                <div className="w-10 h-10 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center justify-center mb-3 text-emerald-500 font-bold">
+                <div
+                  className="w-12 h-12 border rounded-lg flex items-center justify-center mb-4 font-bold"
+                  style={{
+                    background: 'rgba(52, 211, 153, 0.1)',
+                    borderColor: 'rgba(52, 211, 153, 0.3)',
+                    color: '#34D399',
+                  }}
+                >
                   1
                 </div>
                 <div className="font-semibold mb-2">Create Market</div>
@@ -122,7 +219,14 @@ export default function Home() {
                 </div>
               </div>
               <div>
-                <div className="w-10 h-10 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center justify-center mb-3 text-emerald-500 font-bold">
+                <div
+                  className="w-12 h-12 border rounded-lg flex items-center justify-center mb-4 font-bold"
+                  style={{
+                    background: 'rgba(52, 211, 153, 0.1)',
+                    borderColor: 'rgba(52, 211, 153, 0.3)',
+                    color: '#34D399',
+                  }}
+                >
                   2
                 </div>
                 <div className="font-semibold mb-2">Place Bets</div>
@@ -131,7 +235,14 @@ export default function Home() {
                 </div>
               </div>
               <div>
-                <div className="w-10 h-10 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center justify-center mb-3 text-emerald-500 font-bold">
+                <div
+                  className="w-12 h-12 border rounded-lg flex items-center justify-center mb-4 font-bold"
+                  style={{
+                    background: 'rgba(52, 211, 153, 0.1)',
+                    borderColor: 'rgba(52, 211, 153, 0.3)',
+                    color: '#34D399',
+                  }}
+                >
                   3
                 </div>
                 <div className="font-semibold mb-2">Auto-Resolve</div>
@@ -140,7 +251,14 @@ export default function Home() {
                 </div>
               </div>
               <div>
-                <div className="w-10 h-10 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center justify-center mb-3 text-emerald-500 font-bold">
+                <div
+                  className="w-12 h-12 border rounded-lg flex items-center justify-center mb-4 font-bold"
+                  style={{
+                    background: 'rgba(52, 211, 153, 0.1)',
+                    borderColor: 'rgba(52, 211, 153, 0.3)',
+                    color: '#34D399',
+                  }}
+                >
                   4
                 </div>
                 <div className="font-semibold mb-2">Win Rewards</div>
