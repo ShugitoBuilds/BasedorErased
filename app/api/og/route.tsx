@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: '#000000',
             padding: '40px',
           }}
         >
@@ -38,17 +38,39 @@ export async function GET(req: NextRequest) {
               maxWidth: '900px',
             }}
           >
-            <h1
+            <div
               style={{
-                fontSize: '72px',
-                fontWeight: 'bold',
-                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
                 marginBottom: '20px',
-                textAlign: 'center',
               }}
             >
-              🎯 CastPredict
-            </h1>
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  background: '#10b981',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '28px',
+                  fontWeight: 'bold',
+                }}
+              >
+                C
+              </div>
+              <h1
+                style={{
+                  fontSize: '72px',
+                  fontWeight: 'bold',
+                  color: 'white',
+                }}
+              >
+                CastPredict
+              </h1>
+            </div>
 
             {step === 'market' ? (
               <>
