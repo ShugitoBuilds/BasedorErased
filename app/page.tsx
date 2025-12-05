@@ -1,5 +1,18 @@
 import { Metadata } from 'next';
 
+const miniappEmbed = JSON.stringify({
+  version: '1',
+  imageUrl: 'https://cast-predict.vercel.app/api/og',
+  button: {
+    title: 'Open Moon or Doom',
+    action: {
+      type: 'launch_miniapp',
+      name: 'Moon or Doom',
+      url: 'https://cast-predict.vercel.app/miniapp',
+    },
+  },
+});
+
 export const metadata: Metadata = {
   title: 'Moon or Doom - Bet on Viral Moments',
   description: 'Prediction markets for Farcaster. Will it moon or doom?',
@@ -8,11 +21,8 @@ export const metadata: Metadata = {
     description: 'Will it moon? Or will it doom? Place your bets.',
   },
   other: {
-    'fc:frame': 'vNext',
-    'fc:frame:image': `${process.env.NEXT_PUBLIC_APP_URL}/api/og`,
-    'fc:frame:button:1': 'Create Market',
-    'fc:frame:button:1:action': 'post',
-    'fc:frame:post_url': `${process.env.NEXT_PUBLIC_APP_URL}/api/frame`,
+    'fc:miniapp': miniappEmbed,
+    'fc:frame': miniappEmbed, // Backward compatibility
   },
 };
 
