@@ -3,25 +3,37 @@
 import { useEffect, useState } from 'react';
 import { sdk } from '@farcaster/miniapp-sdk';
 import { getMarket, getMoonOdds, getDoomOdds, formatUSDC, parseUSDC } from '@/lib/contract';
-import { createWalletClient, custom, parseAbi } from 'viem';
-import { baseSepolia } from 'viem/chains';
+import { WagmiProvider, useAccount, useWriteContract, useSwitchChain, useChainId } from 'wagmi';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { config } from '@/lib/wagmi';
+import { parseAbi } from 'viem';
+import { baseSepolia } from 'wagmi/chains';
 import contractABI from '@/lib/contractABI.json';
 
 // Import Market type from contract lib
 import type { Market } from '@/lib/contract';
 
-export default function MiniAppPage() {
+const queryClient = new QueryClient();
+
+const REQUIRED_CHAIN_ID = 84532; // Base Sepolia
+const REQUIRED_CHAIN_NAME = 'Base Sepolia';
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`;
+const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
+
+function MiniAppContent() {
   const [context, setContext] = useState<any>(null);
   const [market, setMarket] = useState<Market | null>(null);
   const [moonOdds, setMoonOdds] = useState<number>(50);
   const [doomOdds, setDoomOdds] = useState<number>(50);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentChainId, setCurrentChainId] = useState<number | null>(null);
-  const [isWrongNetwork, setIsWrongNetwork] = useState(false);
 
-  const REQUIRED_CHAIN_ID = 84532; // Base Sepolia
-  const REQUIRED_CHAIN_NAME = 'Base Sepolia';
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
+  const { writeContractAsync } = useWriteContract();
+
+  const isWrongNetwork = chainId !== REQUIRED_CHAIN_ID;
 
   useEffect(() => {
     async function initMiniApp() {
@@ -29,15 +41,6 @@ export default function MiniAppPage() {
         // Get context from Farcaster
         const appContext = await sdk.context;
         setContext(appContext);
-
-        // Check wallet network
-        const provider = await sdk.wallet.getEthereumProvider();
-        if (provider) {
-          const chainId = await provider.request({ method: 'eth_chainId' });
-          const chainIdNum = parseInt(chainId as string, 16);
-          setCurrentChainId(chainIdNum);
-          setIsWrongNetwork(chainIdNum !== REQUIRED_CHAIN_ID);
-        }
 
         // Load market data
         const marketData = await getMarket(1); // Market ID 1
@@ -66,19 +69,8 @@ export default function MiniAppPage() {
 
   const handleSwitchNetwork = async () => {
     try {
-      const provider = await sdk.wallet.getEthereumProvider();
-      if (!provider) return;
-
-      await provider.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: `0x${REQUIRED_CHAIN_ID.toString(16)}` }],
-      });
-
-      // Refresh chain ID
-      const chainId = await provider.request({ method: 'eth_chainId' });
-      const chainIdNum = parseInt(chainId as string, 16);
-      setCurrentChainId(chainIdNum);
-      setIsWrongNetwork(chainIdNum !== REQUIRED_CHAIN_ID);
+      if (!switchChain) return;
+      await switchChain({ chainId: REQUIRED_CHAIN_ID });
     } catch (err: any) {
       console.error('Switch network error:', err);
       const errorMsg = err?.message || err?.name || 'Unknown error';
@@ -90,10 +82,8 @@ export default function MiniAppPage() {
     try {
       setError(null);
 
-      // Get Ethereum provider from SDK (automatically available)
-      const provider = await sdk.wallet.getEthereumProvider();
-      if (!provider) {
-        throw new Error('Wallet not available. Please connect a wallet in your Farcaster client.');
+      if (!isConnected || !address) {
+        throw new Error('Wallet not connected');
       }
 
       // Check network before betting
@@ -101,39 +91,26 @@ export default function MiniAppPage() {
         throw new Error(`Please switch to ${REQUIRED_CHAIN_NAME} to place bets`);
       }
 
-      // Create wallet client
-      const walletClient = createWalletClient({
-        chain: baseSepolia,
-        transport: custom(provider),
-      });
-
-      const [account] = await walletClient.getAddresses();
-      if (!account) {
-        throw new Error('No account found');
-      }
-
-      const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`;
-      const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
       const betAmount = parseUSDC('1'); // 1 USDC
 
       // Step 1: Approve USDC
-      const approveHash = await walletClient.writeContract({
+      const approveHash = await writeContractAsync({
         address: USDC_ADDRESS,
         abi: parseAbi(['function approve(address spender, uint256 amount) returns (bool)']),
         functionName: 'approve',
         args: [CONTRACT_ADDRESS, betAmount],
-        account,
+        chainId: REQUIRED_CHAIN_ID,
       });
 
       console.log('Approval tx:', approveHash);
 
       // Step 2: Place bet
-      const betHash = await walletClient.writeContract({
+      const betHash = await writeContractAsync({
         address: CONTRACT_ADDRESS,
         abi: contractABI as any,
         functionName: isMoon ? 'betMoon' : 'betDoom',
         args: [BigInt(1), betAmount], // Market ID 1
-        account,
+        chainId: REQUIRED_CHAIN_ID,
       });
 
       console.log('Bet tx:', betHash);
@@ -258,7 +235,7 @@ export default function MiniAppPage() {
                 Wrong Network
               </div>
               <div className="text-sm text-zinc-400">
-                You're on {currentChainId === 8453 ? 'Base Mainnet' : `Chain ${currentChainId}`}
+                You're on {chainId === 8453 ? 'Base Mainnet' : `Chain ${chainId}`}
               </div>
             </div>
           </div>
@@ -335,5 +312,15 @@ export default function MiniAppPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function MiniAppPage() {
+  return (
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <MiniAppContent />
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }
