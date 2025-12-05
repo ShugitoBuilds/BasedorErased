@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import { sdk } from '@farcaster/miniapp-sdk';
 import { getMarket, getMoonOdds, getDoomOdds, formatUSDC, parseUSDC } from '@/lib/contract';
-import { WagmiProvider, useAccount, useWriteContract, useSwitchChain, useChainId } from 'wagmi';
+import { WagmiProvider, useAccount, useWriteContract, useSwitchChain, useChainId, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '@/lib/wagmi';
-import { parseAbi } from 'viem';
+import { parseAbi, erc20Abi, maxUint256 } from 'viem';
 import { baseSepolia } from 'wagmi/chains';
 import contractABI from '@/lib/contractABI.json';
 
@@ -31,7 +31,20 @@ function MiniAppContent() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
-  const { writeContractAsync } = useWriteContract();
+  const { writeContractAsync, data: hash } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  const { data: allowance, refetch: refetchAllowance } = useReadContract({
+    address: USDC_ADDRESS,
+    abi: erc20Abi,
+    functionName: 'allowance',
+    args: address ? [address, CONTRACT_ADDRESS] : undefined,
+    query: {
+      enabled: !!address,
+    },
+  });
 
   const isWrongNetwork = chainId !== REQUIRED_CHAIN_ID;
 
@@ -94,33 +107,6 @@ function MiniAppContent() {
       const betAmount = parseUSDC('1'); // 1 USDC
 
       // Step 1: Approve USDC
-      const approveHash = await writeContractAsync({
-        address: USDC_ADDRESS,
-        abi: parseAbi(['function approve(address spender, uint256 amount) returns (bool)']),
-        functionName: 'approve',
-        args: [CONTRACT_ADDRESS, betAmount],
-        chainId: REQUIRED_CHAIN_ID,
-      });
-
-      console.log('Approval tx:', approveHash);
-
-      // Step 2: Place bet
-      const betHash = await writeContractAsync({
-        address: CONTRACT_ADDRESS,
-        abi: contractABI as any,
-        functionName: isMoon ? 'betMoon' : 'betDoom',
-        args: [BigInt(1), betAmount], // Market ID 1
-        chainId: REQUIRED_CHAIN_ID,
-      });
-
-      console.log('Bet tx:', betHash);
-
-      alert(`Success! Bet placed on ${isMoon ? 'MOON' : 'DOOM'}\\n\\nTx: ${betHash.slice(0, 10)}...`);
-
-      // Reload market data
-      setTimeout(async () => {
-        const marketData = await getMarket(1);
-        if (marketData) {
           setMarket(marketData);
           const moon = await getMoonOdds(1);
           const doom = await getDoomOdds(1);
@@ -255,6 +241,18 @@ function MiniAppContent() {
 
       {/* Betting Options */}
       <div className="grid grid-cols-2 gap-4 mb-6">
+        {isConfirming && (
+          <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400 text-sm text-center">
+            Transaction pending...
+          </div>
+        )}
+        
+        {isConfirmed && (
+          <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm text-center">
+            Transaction confirmed!
+          </div>
+        )}
+
         <button
           onClick={() => handleBet(true)}
           className="border rounded-xl p-6 transition-all duration-300 hover:scale-105 active:scale-95"
