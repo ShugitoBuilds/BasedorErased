@@ -31,7 +31,7 @@ export default function MiniAppPage() {
         setContext(appContext);
 
         // Check wallet network
-        const provider = sdk.wallet?.ethProvider;
+        const provider = await sdk.wallet.getEthereumProvider();
         if (provider) {
           const chainId = await provider.request({ method: 'eth_chainId' });
           const chainIdNum = parseInt(chainId as string, 16);
@@ -66,7 +66,7 @@ export default function MiniAppPage() {
 
   const handleSwitchNetwork = async () => {
     try {
-      const provider = sdk.wallet?.ethProvider;
+      const provider = await sdk.wallet.getEthereumProvider();
       if (!provider) return;
 
       await provider.request({
@@ -91,7 +91,7 @@ export default function MiniAppPage() {
       setError(null);
 
       // Get Ethereum provider from SDK (automatically available)
-      const provider = sdk.wallet?.ethProvider;
+      const provider = await sdk.wallet.getEthereumProvider();
       if (!provider) {
         throw new Error('Wallet not available. Please connect a wallet in your Farcaster client.');
       }
