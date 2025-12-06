@@ -14,11 +14,12 @@ const miniappEmbed = JSON.stringify({
 });
 
 export const metadata: Metadata = {
-  title: 'Moon or Doom - Bet on Viral Moments',
-  description: 'Prediction markets for Farcaster. Will it moon or doom?',
+  title: "Based or Erased",
+  description: "Prediction Market for Farcaster",
   openGraph: {
-    title: 'Moon or Doom - Bet on Viral Moments',
-    description: 'Will it moon? Or will it doom? Place your bets.',
+    title: "Based or Erased",
+    description: "Prediction Market for Farcaster",
+    images: ["/splash-v2.png"],
   },
   other: {
     'fc:miniapp': miniappEmbed,

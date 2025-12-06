@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"C:\\Users\\jromb\\VibeCoded Projects\\cast-predict\" log --oneline -10)",
+      "Bash(git -C \"C:\\Users\\jromb\\VibeCoded Projects\\cast-predict\" diff HEAD -- app/page.tsx app/miniapp/page.tsx lib/wagmi.ts)",
+      "Bash(git -C \"C:\\Users\\jromb\\VibeCoded Projects\\cast-predict\" log --oneline --all --graph -15)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

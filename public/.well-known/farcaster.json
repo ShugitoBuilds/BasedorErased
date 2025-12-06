@@ -1,0 +1,29 @@
+{
+    "accountAssociation": {
+        "header": "eyJmaWQiOjE0OTAxMjYsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHg0YjNFMzBmNGVFNzY5MDUyNmYzN2FkY2IzRGI4YjNlZEY4NjRlNmFGIn0",
+        "payload": "eyJkb21haW4iOiJjYXN0LXByZWRpY3QudmVyY2VsLmFwcCJ9",
+        "signature": "LAMJRn02dkk/KRrkXi3peK3S4qu/wZsiLV9r5SOyE3csfq80rVEe5kd3H2wlAtaBGjK4Gl/ZKEWTowenXI3iTRs="
+    },
+    "frame": {
+        "version": "1",
+        "name": "Based or Erased",
+        "iconUrl": "https://cast-predict.vercel.app/icon.png",
+        "homeUrl": "https://cast-predict.vercel.app/miniapp",
+        "imageUrl": "https://cast-predict.vercel.app/splash-v2.png",
+        "buttonTitle": "Open Based or Erased",
+        "splashImageUrl": "https://cast-predict.vercel.app/splash-v2.png",
+        "splashBackgroundColor": "#000000",
+        "webhookUrl": "https://cast-predict.vercel.app/api/webhook"
+    },
+    "miniapp": {
+        "version": "1",
+        "name": "Based or Erased",
+        "iconUrl": "https://cast-predict.vercel.app/icon.png",
+        "homeUrl": "https://cast-predict.vercel.app/miniapp",
+        "imageUrl": "https://cast-predict.vercel.app/api/og",
+        "buttonTitle": "Open Based or Erased",
+        "splashImageUrl": "https://cast-predict.vercel.app/splash-v2.png",
+        "splashBackgroundColor": "#000000",
+        "webhookUrl": "https://cast-predict.vercel.app/api/webhook"
+    }
+}
