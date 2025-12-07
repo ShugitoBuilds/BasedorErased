@@ -5,10 +5,14 @@ import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import Image from 'next/image';
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// Safely initialize Supabase
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+// We export a function or use a singleton that checks initialization
+const supabase = (supabaseUrl && supabaseAnonKey)
+    ? createClient(supabaseUrl, supabaseAnonKey)
+    : null;
 
 type MarketIndex = {
     market_id: number;
@@ -24,6 +28,18 @@ export default function MarketExplorer() {
     const [markets, setMarkets] = useState<MarketIndex[]>([]);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
+
+    if (!supabase) {
+        return (
+            <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 text-center">
+                <div>
+                    <h1 className="text-red-500 text-2xl font-bold mb-2">Configuration Error</h1>
+                    <p className="text-zinc-400">Missing <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></p>
+                    <p className="text-sm text-zinc-600 mt-4">Please add this to your Vercel Environment Variables.</p>
+                </div>
+            </div>
+        );
+    }
 
     useEffect(() => {
         fetchMarkets();
