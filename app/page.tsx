@@ -4,22 +4,24 @@ const miniappEmbed = JSON.stringify({
   version: '1',
   imageUrl: 'https://cast-predict.vercel.app/api/og',
   button: {
-    title: 'Open Moon or Doom',
+    title: 'Open Based or Erased',
     action: {
       type: 'launch_miniapp',
-      name: 'Moon or Doom',
+      name: 'Based or Erased',
       url: 'https://cast-predict.vercel.app/miniapp',
+      splashImageUrl: 'https://cast-predict.vercel.app/based-erased-logo.png', // New Logo
+      splashBackgroundColor: '#000000',
     },
   },
 });
 
 export const metadata: Metadata = {
   title: "Based or Erased",
-  description: "Prediction Market for Farcaster",
+  description: "Prediction Market for Farcaster. Will it stay BASED or get ERASED?",
   openGraph: {
     title: "Based or Erased",
-    description: "Prediction Market for Farcaster",
-    images: ["/splash-v2.png"],
+    description: "Prediction Market for Farcaster. Will it stay BASED or get ERASED?",
+    images: ["/based-erased-logo.png"], // Updated Image
   },
   other: {
     'fc:miniapp': miniappEmbed,
@@ -42,7 +44,7 @@ export default function Home() {
               <div className="text-xs absolute -bottom-1 -right-1">💥</div>
             </div>
             <span className="text-2xl font-bold font-[family-name:var(--font-heading)] tracking-tight">
-              Moon or Doom
+              Based or Erased
             </span>
           </div>
           <div className="flex items-center gap-4 text-sm text-zinc-500 font-[family-name:var(--font-body)]">
@@ -75,10 +77,10 @@ export default function Home() {
                 filter: 'drop-shadow(0 0 20px rgba(52, 211, 153, 0.4))',
               }}
             >
-              MOON
+              BE BASED?
             </span>
             <br />
-            or{' '}
+            <span className="text-4xl md:text-6xl text-white opacity-50 block my-2">OR</span>
             <span
               className="inline-block"
               style={{
@@ -88,13 +90,12 @@ export default function Home() {
                 filter: 'drop-shadow(0 0 20px rgba(251, 113, 133, 0.4))',
               }}
             >
-              DOOM
+              GET ERASED?
             </span>
-            ?
           </h1>
 
           <p className="text-xl md:text-2xl text-zinc-400 mb-20 max-w-2xl font-[family-name:var(--font-body)]">
-            Bet on Farcaster engagement. Trade virality. Win when you're right.
+            Based or Erased: The Prediction Market for Farcaster Virality.
           </p>
 
           {/* Example Markets */}
@@ -117,7 +118,7 @@ export default function Home() {
                     borderColor: 'rgba(52, 211, 153, 0.3)',
                   }}
                 >
-                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#34D399' }}>MOON</div>
+                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#34D399' }}>BASED</div>
                   <div className="text-2xl font-bold font-[family-name:var(--font-mono)]">65<span className="text-sm">%</span></div>
                 </div>
                 <div
@@ -127,7 +128,7 @@ export default function Home() {
                     borderColor: 'rgba(251, 113, 133, 0.3)',
                   }}
                 >
-                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#FB7185' }}>DOOM</div>
+                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#FB7185' }}>ERASED</div>
                   <div className="text-2xl font-bold font-[family-name:var(--font-mono)]">35<span className="text-sm">%</span></div>
                 </div>
               </div>
@@ -151,7 +152,7 @@ export default function Home() {
                     borderColor: 'rgba(52, 211, 153, 0.3)',
                   }}
                 >
-                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#34D399' }}>MOON</div>
+                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#34D399' }}>BASED</div>
                   <div className="text-2xl font-bold font-[family-name:var(--font-mono)]">12<span className="text-sm">%</span></div>
                 </div>
                 <div
@@ -161,7 +162,7 @@ export default function Home() {
                     borderColor: 'rgba(251, 113, 133, 0.3)',
                   }}
                 >
-                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#FB7185' }}>DOOM</div>
+                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#FB7185' }}>ERASED</div>
                   <div className="text-2xl font-bold font-[family-name:var(--font-mono)]">88<span className="text-sm">%</span></div>
                 </div>
               </div>
@@ -185,7 +186,7 @@ export default function Home() {
                     borderColor: 'rgba(52, 211, 153, 0.3)',
                   }}
                 >
-                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#34D399' }}>MOON</div>
+                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#34D399' }}>BASED</div>
                   <div className="text-2xl font-bold font-[family-name:var(--font-mono)]">42<span className="text-sm">%</span></div>
                 </div>
                 <div
@@ -195,7 +196,7 @@ export default function Home() {
                     borderColor: 'rgba(251, 113, 133, 0.3)',
                   }}
                 >
-                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#FB7185' }}>DOOM</div>
+                  <div className="text-xs font-[family-name:var(--font-mono)] mb-1" style={{ color: '#FB7185' }}>ERASED</div>
                   <div className="text-2xl font-bold font-[family-name:var(--font-mono)]">58<span className="text-sm">%</span></div>
                 </div>
               </div>

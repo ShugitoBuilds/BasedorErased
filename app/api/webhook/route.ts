@@ -3,6 +3,7 @@ import { createWalletClient, createPublicClient, http, parseEventLogs } from 'vi
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import contractABI from '@/lib/contractABI.json';
+import { supabase } from '@/lib/supabaseClient';
 import crypto from 'crypto';
 
 // --- CONFIG ---
@@ -268,10 +269,33 @@ export async function POST(req: NextRequest) {
 
         console.log(`[Webhook] Market created: #${newMarketId}`);
 
-        // 8. Reply to Cast with Mini App Link
+        // 8. Snapshot the Cast Data (Data Integrity)
+        if (newMarketId !== null) {
+            try {
+                const { error: dbError } = await supabase
+                    .from('cast_snapshots')
+                    .insert({
+                        cast_hash: castHash,
+                        market_id: newMarketId,
+                        author_fid: authorFid,
+                        text: castText,
+                        snapshot_data: cast, // Full Neynar JSON
+                    });
+
+                if (dbError) {
+                    console.error('[Webhook] Failed to save snapshot:', dbError);
+                } else {
+                    console.log(`[Webhook] Snapshot saved for Market #${newMarketId}`);
+                }
+            } catch (dbErr) {
+                console.error('[Webhook] Snapshot exception:', dbErr);
+            }
+        }
+
+        // 9. Reply to Cast with Mini App Link
         const replyText = `Market Created! 🔮\n\n` +
             `⚡ Based or Erased?\n` +
-            `🎯 Goal: ${threshold} likes in ${durationHours}h\n` +
+            `🎯 Goal: ${threshold} Power Likes ⚡ in ${durationHours}h\n` +
             `💰 Bet 1 USDC on the outcome\n\n` +
             `Bet now: ${APP_URL}/miniapp?marketId=${newMarketId}`;
 

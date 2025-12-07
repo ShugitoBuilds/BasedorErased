@@ -21,8 +21,8 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Moon or Doom - Bet on Viral Moments",
-  description: "Prediction markets for Farcaster engagement. Will it moon or doom?",
+  title: "Based or Erased - Prediction Markets",
+  description: "Will it stay BASED or get ERASED? Bet on Farcaster engagement.",
 };
 
 export default function RootLayout({

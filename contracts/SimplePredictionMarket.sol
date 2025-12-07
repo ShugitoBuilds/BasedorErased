@@ -90,10 +90,13 @@ contract SimplePredictionMarket is Ownable, ReentrancyGuard {
         string calldata castUrl,
         uint256 threshold,
         uint256 deadline
-    ) external onlyOwner returns (uint256) {
-        require(deadline > block.timestamp, "Deadline must be in future");
-        require(threshold > 0, "Threshold must be positive");
+    ) external returns (uint256) {
+        require(deadline > block.timestamp + 1 hours, "Deadline must be > 1h");
+        require(threshold >= 10, "Threshold must be >= 10");
         require(bytes(castUrl).length > 0, "Cast URL required");
+
+        // Optional: We could charge a fee here, but for MVP/Testnet we enable free creation
+        // to encourage usage.
 
         uint256 marketId = nextMarketId++;
 

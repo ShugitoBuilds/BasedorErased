@@ -3,6 +3,7 @@ import { createWalletClient, createPublicClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import contractABI from '@/lib/contractABI.json';
+import { supabase } from '@/lib/supabaseClient';
 
 // --- CONFIG ---
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
@@ -87,58 +88,104 @@ function extractCastIdentifier(castUrl: string): string | null {
 }
 
 /**
- * Fetch cast likes from Neynar API
+ * Fetch Power Likes from Neynar API (Paginated + Bulk User Fetch)
+ * Filters for users with high reputation score (score > 0.9)
+ * using Score as accurate proxy.
  */
-async function getCastLikes(castUrl: string): Promise<number> {
+async function getPowerLikes(castUrl: string): Promise<number> {
     if (!NEYNAR_API_KEY) {
         console.warn('[Oracle] No NEYNAR_API_KEY, returning mock likes');
         return 0;
     }
 
     try {
-        const identifier = extractCastIdentifier(castUrl);
-        if (!identifier) {
-            console.error(`[Oracle] Could not extract identifier from: ${castUrl}`);
-            return 0;
-        }
+        let identifier = extractCastIdentifier(castUrl) || castUrl;
 
-        // Try URL-based lookup first
-        let response = await fetch(
-            `https://api.neynar.com/v2/farcaster/cast?identifier=${encodeURIComponent(castUrl)}&type=url`,
-            {
-                headers: { 'api_key': NEYNAR_API_KEY },
-            }
-        );
+        let hash = identifier;
 
-        // If URL lookup fails, try hash-based lookup
-        if (!response.ok && identifier.startsWith('0x')) {
-            response = await fetch(
-                `https://api.neynar.com/v2/farcaster/cast?identifier=${identifier}&type=hash`,
-                {
-                    headers: { 'api_key': NEYNAR_API_KEY },
-                }
+        // If identifier looks like a URL (not starting with 0x), we need to resolve it to a hash first
+        if (!identifier.startsWith('0x')) {
+            const resolveRes = await fetch(
+                `https://api.neynar.com/v2/farcaster/cast?identifier=${encodeURIComponent(castUrl)}&type=url`,
+                { headers: { 'api_key': NEYNAR_API_KEY } }
             );
+            if (resolveRes.ok) {
+                const data = await resolveRes.json();
+                hash = data.cast?.hash;
+            }
         }
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`[Oracle] Neynar API error for ${castUrl}:`, errorText);
+        if (!hash || !hash.startsWith('0x')) {
+            console.error(`[Oracle] Could not resolve hash for: ${castUrl}`);
             return 0;
         }
 
-        const data = await response.json();
+        let powerLikes = 0;
+        let cursor: string | null = null;
+        let page = 0;
+        const MAX_PAGES = 5; // Check up to ~500 likes
 
-        if (data.cast) {
-            // Neynar v2 returns likes in reactions object
-            const likesCount = data.cast.reactions?.likes_count ??
-                               data.cast.reactions?.likes?.length ??
-                               0;
-            return likesCount;
-        }
+        do {
+            const params = new URLSearchParams({
+                hash: hash,
+                types: 'likes',
+                limit: '100',
+            });
+            if (cursor) params.append('cursor', cursor);
 
-        return 0;
+            const res = await fetch(
+                `https://api.neynar.com/v2/farcaster/reactions/cast?${params.toString()}`,
+                { headers: { 'api_key': NEYNAR_API_KEY } }
+            );
+
+            if (!res.ok) {
+                console.error(`[Oracle] Error fetching likes page ${page}:`, await res.text());
+                break;
+            }
+
+            const data = await res.json();
+            const reactions = data.reactions || [];
+
+            if (reactions.length > 0) {
+                // 1. Extract FIDs
+                const fids = reactions.map((r: any) => r.user.fid).join(',');
+
+                // 2. Fetch User Details (Bulk)
+                const userRes = await fetch(
+                    `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fids}`,
+                    { headers: { 'api_key': NEYNAR_API_KEY } }
+                );
+
+                if (userRes.ok) {
+                    const userData = await userRes.json();
+                    const users = userData.users || [];
+
+                    for (const user of users) {
+                        // High Reputation Check (Score > 0.9 or Power Badge)
+                        const score = user.score || user.experimental?.neynar_user_score || 0;
+                        if (score > 0.9 || user.power_badge === true) {
+                            powerLikes++;
+                        }
+                    }
+                } else {
+                    console.error('[Oracle] User Bulk Fetch Error:', await userRes.text());
+                }
+            }
+
+            cursor = data.next?.cursor || null;
+            page++;
+
+            if (page >= MAX_PAGES) {
+                console.warn(`[Oracle] Hit max pages (${MAX_PAGES}) for ${castUrl}. Stopping count at ${powerLikes}.`);
+                break;
+            }
+
+        } while (cursor);
+
+        return powerLikes;
+
     } catch (err) {
-        console.error(`[Oracle] Error fetching likes for ${castUrl}:`, err);
+        console.error(`[Oracle] Error fetching power likes for ${castUrl}:`, err);
         return 0;
     }
 }
@@ -240,11 +287,11 @@ export async function GET(req: NextRequest) {
                 const threshold = Number(market.threshold);
                 const castUrl = market.castUrl;
 
-                console.log(`[Oracle] Checking Market #${id}: ${threshold} likes, deadline ${new Date(deadline * 1000).toISOString()}`);
+                console.log(`[Oracle] Checking Market #${id}: ${threshold} Power Likes, deadline ${new Date(deadline * 1000).toISOString()}`);
 
                 // Fetch current likes from Neynar
-                const likes = await getCastLikes(castUrl);
-                console.log(`[Oracle] Market #${id}: ${likes}/${threshold} likes`);
+                const likes = await getPowerLikes(castUrl);
+                console.log(`[Oracle] Market #${id}: ${likes}/${threshold} Power Likes`);
 
                 let shouldResolve = false;
                 let outcome: number = Outcome.UNRESOLVED;
@@ -274,8 +321,34 @@ export async function GET(req: NextRequest) {
                         threshold,
                     });
                     console.log(`[Oracle] Market #${id}: Still pending (${likes}/${threshold}, ${Math.round((deadline - now) / 60)}min remaining)`);
+                    console.log(`[Oracle] Market #${id}: Still pending (${likes}/${threshold}, ${Math.round((deadline - now) / 60)}min remaining)`);
                     continue;
                 }
+
+                // --- SNAPSHOT CHECK FOR DELETED CASTS ---
+                // If likes are 0 and deadline hasn't fully passed (or even if it passed),
+                // it might be a Deleted Cast. A pure "0" is suspicious for a market that existed.
+                // Or if Neynar failed to resolve the hash.
+
+                if (likes === 0) {
+                    // Check if we have a snapshot
+                    const { data: snapshot } = await supabase
+                        .from('cast_snapshots')
+                        .select('*')
+                        .eq('market_id', id)
+                        .single();
+
+                    if (snapshot) {
+                        // We have proof this cast existed.
+                        // If proper Neynar check returned 0, it means it's likely deleted.
+                        // In "Based or Erased", a Deleted Cast = ERASED (Outcome: DOOM).
+                        console.warn(`[Oracle] Market #${id}: Cast likely deleted! Snapshot found. Treating as ERASED.`);
+                        outcome = Outcome.DOOM;
+                        outcomeStr = 'ERASED (Deleted)';
+                        shouldResolve = true;
+                    }
+                }
+                // ----------------------------------------
 
                 // Resolve the market on-chain
                 if (shouldResolve) {
