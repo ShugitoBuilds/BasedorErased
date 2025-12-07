@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "font-src 'self' data:",
-              "connect-src 'self' https://*.warpcast.com https://warpcast.com https://*.coinbase.com https://wallet.coinbase.com https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.base.org https://base-sepolia.g.alchemy.com https://base-mainnet.g.alchemy.com",
+              "connect-src 'self' https://ucmxdkdbhkkcarpitkku.supabase.co https://*.warpcast.com https://warpcast.com https://*.coinbase.com https://wallet.coinbase.com https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.base.org https://base-sepolia.g.alchemy.com https://base-mainnet.g.alchemy.com",
               "frame-src 'self' https://*.coinbase.com https://wallet.coinbase.com",
             ].join('; '),
           },
