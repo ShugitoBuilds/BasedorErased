@@ -56,31 +56,46 @@ function MarketHubContent() {
     useEffect(() => {
         if (activeTab === 'markets') {
             fetchMarkets();
+        } else {
+            setLoading(false);
         }
     }, [activeTab, search, filter]);
 
     async function fetchMarkets() {
-        if (!supabase) return;
+        if (!supabase) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
-        let query = supabase
-            .from('market_index')
-            .select('*')
-            .order('created_at', { ascending: false });
 
-        if (search) {
-            query = query.ilike('author_username', `%${search}%`);
+        try {
+            let query = supabase
+                .from('market_index')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (search) {
+                query = query.ilike('author_username', `%${search}%`);
+            }
+
+            if (filter === 'active') {
+                query = query.eq('status', 'active');
+            } else if (filter === 'resolved') {
+                query = query.neq('status', 'active');
+            }
+
+            const { data, error } = await query;
+            if (error) {
+                console.error('Error fetching markets:', error);
+            }
+            if (data) {
+                setMarkets(data);
+            }
+        } catch (err) {
+            console.error('Unexpected error fetching markets:', err);
+        } finally {
+            setLoading(false);
         }
-
-        if (filter === 'active') {
-            query = query.eq('status', 'active');
-        } else if (filter === 'resolved') {
-            query = query.neq('status', 'active');
-        }
-
-        const { data, error } = await query;
-        if (error) console.error('Error fetching markets:', error);
-        if (data) setMarkets(data);
-        setLoading(false);
     }
 
     return (
