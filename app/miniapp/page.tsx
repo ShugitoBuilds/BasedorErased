@@ -2,10 +2,12 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
-import { useAccount } from 'wagmi';
+import { WagmiProvider, useAccount } from 'wagmi';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { config } from '@/lib/wagmi';
 
 // Safely initialize Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -14,6 +16,8 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = (supabaseUrl && supabaseAnonKey)
     ? createClient(supabaseUrl, supabaseAnonKey)
     : null;
+
+const queryClient = new QueryClient();
 
 type MarketIndex = {
     market_id: number;
@@ -29,7 +33,7 @@ type MarketIndex = {
 type Tab = 'markets' | 'mybets' | 'faq' | 'guide';
 type MarketFilter = 'all' | 'active' | 'resolved';
 
-export default function MarketHub() {
+function MarketHubContent() {
     const { address, isConnected } = useAccount();
     const [activeTab, setActiveTab] = useState<Tab>('markets');
     const [markets, setMarkets] = useState<MarketIndex[]>([]);
@@ -451,5 +455,23 @@ function GuideSection() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function MarketHub() {
+    return (
+        <WagmiProvider config={config}>
+            <QueryClientProvider client={queryClient}>
+                <div style={{ display: 'contents' }}>
+                    <React.Suspense fallback={
+                        <div className="min-h-screen bg-black text-white flex items-center justify-center">
+                            <div className="animate-pulse text-zinc-500">Loading Hub...</div>
+                        </div>
+                    }>
+                        <MarketHubContent />
+                    </React.Suspense>
+                </div>
+            </QueryClientProvider>
+        </WagmiProvider>
     );
 }
