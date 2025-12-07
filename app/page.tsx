@@ -1,6 +1,8 @@
 import { Metadata } from 'next';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cast-predict.vercel.app';
+export const dynamic = 'force-dynamic';
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://basedorerased.vercel.app';
 
 const miniappEmbed = JSON.stringify({
   version: '1',

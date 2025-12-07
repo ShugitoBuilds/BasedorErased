@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getMarket, getMoonOdds, getDoomOdds, formatUSDC } from '@/lib/contract';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -36,6 +38,7 @@ export async function POST(req: NextRequest) {
       return new NextResponse(responseHtml, {
         headers: {
           'Content-Type': 'text/html',
+          'Cache-Control': 'no-store, max-age=0',
         },
       });
     }
@@ -67,6 +70,7 @@ export async function POST(req: NextRequest) {
     return new NextResponse(responseHtml, {
       headers: {
         'Content-Type': 'text/html',
+        'Cache-Control': 'no-store, max-age=0',
       },
     });
   } catch (error) {

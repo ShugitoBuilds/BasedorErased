@@ -20,6 +20,24 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        source: '/api/frame',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0',
+          },
+        ],
+      },
+      {
+        source: '/api/og',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0',
+          },
+        ],
+      },
     ];
   },
 };
