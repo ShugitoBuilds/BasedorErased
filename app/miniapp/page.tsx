@@ -67,6 +67,9 @@ export default function MarketExplorer() {
         <div className="min-h-screen bg-black text-white p-4 pb-20 font-sans">
             {/* Search Header */}
             <div className="mb-6 sticky top-0 bg-black/80 backdrop-blur-md z-10 py-2 border-b border-white/10">
+                <div className="bg-zinc-900 p-2 text-xs font-mono text-zinc-500 mb-2">
+                    DEBUG: v2.1 | Supabase: {supabase ? 'OK' : 'NULL'} | Markets: {markets.length} | Loading: {loading ? 'YES' : 'NO'} | Search: {search || 'NONE'}
+                </div>
                 <h1 className="text-xl font-bold mb-4 bg-gradient-to-r from-green-400 to-purple-500 bg-clip-text text-transparent">
                     Live Markets
                 </h1>
