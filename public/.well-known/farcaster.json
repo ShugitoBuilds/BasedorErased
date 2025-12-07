@@ -20,7 +20,7 @@
         "name": "Based or Erased",
         "iconUrl": "https://basedorerased.vercel.app/icon.png",
         "homeUrl": "https://basedorerased.vercel.app/miniapp",
-        "imageUrl": "https://basedorerased.vercel.app/api/og",
+        "imageUrl": "https://basedorerased.vercel.app/splash-v2.png",
         "buttonTitle": "Open Based or Erased",
         "splashImageUrl": "https://basedorerased.vercel.app/splash-v2.png",
         "splashBackgroundColor": "#000000",
