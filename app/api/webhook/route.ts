@@ -12,7 +12,7 @@ const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
 const NEYNAR_WEBHOOK_SECRET = process.env.NEYNAR_WEBHOOK_SECRET; // For HMAC validation
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`;
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cast-predict.vercel.app';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://basedorerased.vercel.app';
 
 // Initialize Viem Clients
 const account = privateKeyToAccount(DEPLOYER_PRIVATE_KEY);

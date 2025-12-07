@@ -26,7 +26,7 @@ const REQUIRED_CHAIN_ID = 84532; // Base Sepolia
 const REQUIRED_CHAIN_NAME = 'Base Sepolia';
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`;
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cast-predict.vercel.app';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://basedorerased.vercel.app';
 
 /**
  * Generate Warpcast share URL for a bet

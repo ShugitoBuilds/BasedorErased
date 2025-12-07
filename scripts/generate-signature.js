@@ -15,7 +15,7 @@ async function main() {
     // Often it's an EIP-712 signer or just the account itself.
     // For domain verification, we usually sign with the App's custody address.
 
-    const domain = "cast-predict.vercel.app";
+    const domain = "basedorerased.vercel.app";
 
     // This is a simplified example. The actual signing might require specific encoding.
     // However, the easiest way is often to use the Farcaster Developer Portal's "Domain Verification" tool
