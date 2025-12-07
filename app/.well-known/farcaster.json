@@ -1,0 +1,18 @@
+{
+    "accountAssociation": {
+        "header": "eyJmaWQiOjg4OTQ5MiwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDVFNzlFNzkwZjlEYzVDQzY5OERjRjUzRC04QTdlQjE0QzgzNDY0OUIifQ",
+        "payload": "eyJkb21haW4iOiJiYXNlZG9yZXJhc2VkLnZlcmNlbC5hcHAifQ",
+        "signature": "MHhkYjQ4..."
+    },
+    "frame": {
+        "version": "1",
+        "name": "Based or Erased",
+        "iconUrl": "https://basedorerased.vercel.app/based-erased-logo.png",
+        "homeUrl": "https://basedorerased.vercel.app/miniapp",
+        "imageUrl": "https://basedorerased.vercel.app/api/og",
+        "buttonTitle": "Open Based or Erased",
+        "splashImageUrl": "https://basedorerased.vercel.app/based-erased-logo.png",
+        "splashBackgroundColor": "#000000",
+        "webhookUrl": "https://basedorerased.vercel.app/api/webhook"
+    }
+}
