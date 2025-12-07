@@ -1,15 +1,17 @@
 import { Metadata } from 'next';
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cast-predict.vercel.app';
+
 const miniappEmbed = JSON.stringify({
   version: '1',
-  imageUrl: 'https://cast-predict.vercel.app/api/og',
+  imageUrl: `${APP_URL}/api/og`,
   button: {
     title: 'Open Based or Erased',
     action: {
       type: 'launch_miniapp',
       name: 'Based or Erased',
-      url: 'https://cast-predict.vercel.app/miniapp',
-      splashImageUrl: 'https://cast-predict.vercel.app/based-erased-logo.png', // New Logo
+      url: `${APP_URL}/miniapp`,
+      splashImageUrl: `${APP_URL}/based-erased-logo.png`,
       splashBackgroundColor: '#000000',
     },
   },
