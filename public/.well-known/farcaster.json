@@ -9,9 +9,9 @@
         "name": "Based or Erased",
         "iconUrl": "https://basedorerased.vercel.app/icon.png",
         "homeUrl": "https://basedorerased.vercel.app/miniapp",
-        "imageUrl": "https://basedorerased.vercel.app/splash-v2.png",
+        "imageUrl": "https://basedorerased.vercel.app/splash-v3.png",
         "buttonTitle": "Open Based or Erased",
-        "splashImageUrl": "https://basedorerased.vercel.app/splash-v2.png",
+        "splashImageUrl": "https://basedorerased.vercel.app/splash-v3.png",
         "splashBackgroundColor": "#000000",
         "webhookUrl": "https://basedorerased.vercel.app/api/webhook"
     },
@@ -20,9 +20,9 @@
         "name": "Based or Erased",
         "iconUrl": "https://basedorerased.vercel.app/icon.png",
         "homeUrl": "https://basedorerased.vercel.app/miniapp",
-        "imageUrl": "https://basedorerased.vercel.app/splash-v2.png",
+        "imageUrl": "https://basedorerased.vercel.app/splash-v3.png",
         "buttonTitle": "Open Based or Erased",
-        "splashImageUrl": "https://basedorerased.vercel.app/splash-v2.png",
+        "splashImageUrl": "https://basedorerased.vercel.app/splash-v3.png",
         "splashBackgroundColor": "#000000",
         "webhookUrl": "https://basedorerased.vercel.app/api/webhook"
     }
