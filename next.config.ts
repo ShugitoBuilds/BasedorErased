@@ -13,8 +13,8 @@ const nextConfig: NextConfig = {
               script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.farcaster.xyz;
               style-src 'self' 'unsafe-inline';
               img-src 'self' blob: data: https:;
-              connect-src 'self' https: wss:; 
               font-src 'self' data:;
+              connect-src * data: blob: https: wss:;
               frame-src 'self' https://*.farcaster.xyz;
             `.replace(/\s{2,}/g, ' ').trim(),
           },
