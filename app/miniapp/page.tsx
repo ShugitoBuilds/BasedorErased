@@ -46,6 +46,7 @@ export default function MarketExplorer() {
     }, [search]);
 
     async function fetchMarkets() {
+        if (!supabase) return; // TS guard
         setLoading(true);
         let query = supabase
             .from('market_index')
