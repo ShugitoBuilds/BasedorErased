@@ -80,11 +80,13 @@ export async function POST(req: NextRequest) {
         // If we don't have them, the UI might look broken.
         // Let's Insert what we have.
 
+        // MAPPING: marketId -> market_id, castUrl -> cast_hash (schema uses cast_hash), deadline -> deadline
+
         const { error } = await supabase
-            .from('markets')
+            .from('market_index')
             .upsert({
                 market_id: Number(marketId),
-                cast_url: castUrl,
+                cast_hash: castUrl,
                 deadline: new Date(Number(deadline) * 1000).toISOString(),
                 status: 'active',
                 created_at: new Date().toISOString(),
