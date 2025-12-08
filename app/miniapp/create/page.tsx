@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseAbi } from 'viem';
 import { useRouter } from 'next/navigation';
@@ -24,6 +24,18 @@ function CreateMarketContent() {
 
     const [threshold, setThreshold] = useState(100);
     const [castUrl, setCastUrl] = useState('');
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    // Trigger sync when transaction succeeds
+    if (isSuccess && hash && !isSyncing) {
+        // Note: In strict mode this might double fire, but our idempotent DB insert handles it.
+        // Ideally use specific useEffect, but for simplicity:
+        // We'll use a self-executing effect logic inside the component body or upgrade to useEffect.
+    }
+
+    // Better: Use useEffect to trigger once
+    import { useEffect } from 'react';
+
 
     async function handleCreate() {
         if (!castUrl) return alert('Enter a Cast URL');
@@ -97,10 +109,14 @@ function CreateMarketContent() {
 
                 {isSuccess && (
                     <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-center">
-                        <div className="text-green-400 font-bold mb-2">Market Created!</div>
+                        <div className="text-green-400 font-bold mb-2">
+                            {syncSuccess ? 'Market Created & Synced!' : isSyncing ? 'Syncing to Database...' : 'Market Created!'}
+                        </div>
+                        {isSyncing && <div className="text-xs text-zinc-500 mb-2 animate-pulse"> finalizing... </div>}
                         <button
                             onClick={() => router.push('/miniapp')}
-                            className="text-sm underline text-zinc-400 hover:text-white"
+                            disabled={isSyncing}
+                            className="text-sm underline text-zinc-400 hover:text-white disabled:opacity-50"
                         >
                             Back to Explorer
                         </button>
