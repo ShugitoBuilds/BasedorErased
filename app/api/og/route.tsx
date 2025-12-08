@@ -14,6 +14,10 @@ export async function GET(req: NextRequest) {
 
     const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://basedorerased.vercel.app';
 
+    // Fetch image to safely render in Edge
+    const logoUrl = `${APP_URL}/based-or-erased-coin.png`;
+    const logoData = await fetch(logoUrl).then((res) => res.arrayBuffer()).catch(() => null);
+
     return new ImageResponse(
       (
         <div
@@ -24,7 +28,7 @@ export async function GET(req: NextRequest) {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            background: '#0a0a0a', // Darker background to match app
+            background: '#0a0a0a',
             padding: '40px',
           }}
         >
@@ -34,22 +38,29 @@ export async function GET(req: NextRequest) {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'rgba(0, 0, 0, 0.4)', // Slightly transparent
+              background: 'rgba(0, 0, 0, 0.4)',
               borderRadius: '24px',
               padding: '60px',
               width: '90%',
               maxWidth: '900px',
             }}
           >
-            <img
-              src={`${APP_URL}/based-or-erased-coin.png`}
-              width="800"
-              height="auto" // Adjust as needed
-              style={{
-                objectFit: 'contain',
-                marginBottom: '20px'
-              }}
-            />
+            {/* Render Logo from Buffer if available, else fallback to text or empty */}
+            {logoData ? (
+              <img
+                src={logoData as any}
+                width="600"
+                height="600"
+                style={{
+                  objectFit: 'contain',
+                  marginBottom: '20px',
+                  width: '600px',
+                  height: '600px',
+                }}
+              />
+            ) : (
+              <div style={{ color: 'white', fontSize: 60 }}>Based or Erased</div>
+            )}
 
 
             {step === 'market' ? (

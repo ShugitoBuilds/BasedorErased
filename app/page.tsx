@@ -13,7 +13,7 @@ const miniappEmbed = JSON.stringify({
       type: 'launch_miniapp',
       name: 'Based or Erased',
       url: `${APP_URL}/miniapp`,
-      splashImageUrl: `${APP_URL}/based-erased-logo.png`,
+      splashImageUrl: `${APP_URL}/based-or-erased-coin.png`,
       splashBackgroundColor: '#000000',
     },
   },
@@ -42,11 +42,12 @@ export default function Home() {
       {/* Header */}
       <div className="border-b border-zinc-800/50 backdrop-blur-sm sticky top-0 z-50 bg-black/80">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="text-2xl">🌙</div>
-              <div className="text-xs absolute -bottom-1 -right-1">💥</div>
-            </div>
+          <div className="flex items-center gap-4">
+            <img
+              src="/based-or-erased-coin.png"
+              alt="Based or Erased"
+              className="w-20 h-20 object-contain"
+            />
             <span className="text-2xl font-bold font-[family-name:var(--font-heading)] tracking-tight">
               Based or Erased
             </span>
