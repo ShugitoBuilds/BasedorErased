@@ -1,8 +1,8 @@
 # 🎱 Based or Erased: Master Project Context through Dec 2025
 
 **Version:** 2.0.0 (Consolidated)
-**Status:** Feature Complete & optimzied
-**Last Updated:** December 07, 2025
+**Status:** Testing & Verification (Sync Logic)
+**Last Updated:** December 08, 2025
 
 ---
 
@@ -66,6 +66,16 @@ To prevent API overages (High Billable Usage):
 
 ## 4. Change Log 📝
 
+### v2.1.0 - Real-Time Sync & Robustness (Dec 8, 2025)
+*   **Critical Sync Fixes:**
+    *   **ABI Mismatch Resolved:** Corrected `MarketCreated` event signature to match Solidity contract (`uint256 threshold`, `address creator` vs `uint256 conditionId`). This resolved the "No MarketCreated event found" error.
+    *   **Infinite Loop Prevention:** Added `syncAttempted` state to the client-side `useEffect` hook to ensure the sync API is called exactly once per transaction.
+    *   **Debug Logging:** Enhanced server-side logging to capture raw topics for ABI debugging.
+*   **UI/UX Improvements:**
+    *   **Visual Trust:** Added a "Build Timestamp" banner (Gray Strip) to the Mini App header for version verification during testing.
+    *   **Aesthetics:** Updated the "Based or Erased" banner image with a cropped version and switched to `h-auto` to eliminate dead space.
+    *   **Feedback:** Improved "Syncing..." and "Success/Failure" UI states in the Create Market flow.
+
 ### v2.0.0 - Optimization & Branding Overhaul (Dec 7, 2025)
 *   **Neynar API Optimization:**
     *   Implemented "Fast Path" resolution (Instant MOON for viral casts).
@@ -89,6 +99,11 @@ To prevent API overages (High Billable Usage):
 ---
 
 ## 5. Future Roadmap 🚀
+*   **Immediate Focus (Next Session):** End-to-End Process Verification.
+    *   Verify Market Creation -> Database Sync.
+    *   Verify Betting (Moon/Doom) updates odds in real-time.
+    *   Verify Resolution (Time/Threshold met).
+    *   Verify Claiming of Winnings.
 *   **Mainnet Launch:** Deploy contract to Base Mainnet (Real USDC).
 *   **Advanced Analytics:** Leaderboards for top predictors.
 *   **Social Sharing:** Auto-generate "I bet MOON" casts when betting.

@@ -74,11 +74,35 @@ export async function POST(req: NextRequest) {
         // For V1 Speed: Let's just insert the raw data. The main view might handle the "missing metadata" gracefully or we can do a quick client-side fetch.
         // Actually best practice: Fetch Neynar here so the DB is complete. 
 
-        // 1. Fetch Cast Info from Neynar (to get author/image) if possible, OR just insert minimal and let a background worker enrich it.
-        // Let's do Minimal Insert for speed, assuming the frontend fetches live data or we have a generic placeholder.
-        // Actually, looking at the main page, it needs author_username, author_pfp_url.
-        // If we don't have them, the UI might look broken.
-        // Let's Insert what we have.
+        // 1. Fetch Cast Info from Neynar
+        let authorUsername = 'unknown';
+        let authorPfp = '';
+        let castText = 'Content unavailable';
+
+        if (process.env.NEYNAR_API_KEY) {
+            try {
+                // Simple extraction or use full URL if Neynar supports it
+                // Neynar "cast" endpoint supports 'url' type
+                const neynarRes = await fetch(
+                    `https://api.neynar.com/v2/farcaster/cast?identifier=${encodeURIComponent(castUrl)}&type=url`,
+                    { headers: { 'api_key': process.env.NEYNAR_API_KEY, 'accept': 'application/json' } }
+                );
+
+                if (neynarRes.ok) {
+                    const data = await neynarRes.json();
+                    const cast = data.cast;
+                    if (cast) {
+                        authorUsername = cast.author.username;
+                        authorPfp = cast.author.pfp_url;
+                        castText = cast.text;
+                    }
+                } else {
+                    console.warn('[Sync] Neynar Fetch Failed:', await neynarRes.text());
+                }
+            } catch (err) {
+                console.error('[Sync] Neynar Error:', err);
+            }
+        }
 
         // MAPPING: marketId -> market_id, castUrl -> cast_hash (schema uses cast_hash), deadline -> deadline
 
@@ -90,10 +114,9 @@ export async function POST(req: NextRequest) {
                 deadline: new Date(Number(deadline) * 1000).toISOString(),
                 status: 'active',
                 created_at: new Date().toISOString(),
-                // Default / Placeholder metadata until enriched
-                author_username: 'loading...',
-                author_pfp_url: '',
-                cast_text: 'Loading new market...'
+                author_username: authorUsername,
+                author_pfp_url: authorPfp,
+                cast_text: castText
             }, { onConflict: 'market_id' });
 
         if (error) {

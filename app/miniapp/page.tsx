@@ -31,6 +31,14 @@ type MarketIndex = {
     created_at: string;
 };
 
+function formatTimeRemaining(deadlineIso: string): string {
+    const diff = new Date(deadlineIso).getTime() - Date.now();
+    if (diff <= 0) return 'Ended';
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${mins}m left`;
+}
+
 type Tab = 'markets' | 'mybets' | 'faq' | 'guide';
 type MarketFilter = 'all' | 'active' | 'resolved';
 
@@ -325,7 +333,25 @@ function MarketsSection({
                                     <span className={market.status === 'active' ? 'text-green-400 font-semibold' : 'text-zinc-500'}>
                                         ● {market.status?.toUpperCase() || 'ACTIVE'}
                                     </span>
-                                    <span className="text-purple-400">Bet Now →</span>
+                                    {market.deadline && (
+                                        <span className="text-zinc-500 font-mono text-[10px]">
+                                            {formatTimeRemaining(market.deadline)}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="mt-3 flex gap-2">
+                                    <a
+                                        href={market.cast_hash || '#'}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="flex-1 py-2 text-center text-xs font-bold text-zinc-400 bg-zinc-900 border border-zinc-700 rounded-lg hover:text-white hover:border-zinc-500 transition-all"
+                                    >
+                                        View Cast ↗
+                                    </a>
+                                    <div className="flex-1 py-2 text-center text-xs font-bold text-black bg-white rounded-lg group-hover:scale-105 transition-transform">
+                                        Bet Now →
+                                    </div>
                                 </div>
                             </div>
                         </Link>
