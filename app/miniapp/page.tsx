@@ -116,9 +116,13 @@ function MarketHubContent() {
             {/* Header with Tabs */}
             <div className="sticky top-0 bg-black/95 backdrop-blur-md z-20 border-b border-white/10">
                 <div className="p-4">
-                    <h1 className="text-2xl font-bold mb-4 bg-gradient-to-r from-green-400 to-purple-500 bg-clip-text text-transparent">
-                        Based or Erased
-                    </h1>
+                    <div className="mb-4 flex justify-center">
+                        <img
+                            src="/header.png"
+                            alt="Based or Erased"
+                            className="h-16 w-auto object-contain"
+                        />
+                    </div>
 
                     {/* Tab Navigation */}
                     <div className="flex gap-2 overflow-x-auto pb-2">
