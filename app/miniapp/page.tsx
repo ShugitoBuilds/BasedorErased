@@ -85,7 +85,7 @@ function MarketHubContent() {
             let query = supabase
                 .from('market_index')
                 .select('*')
-                .neq('author_username', '@shugito') // Hide test markets
+                .neq('author_username', 'shugito') // Hide test markets
                 .order('created_at', { ascending: false });
 
             if (search) {
@@ -177,6 +177,7 @@ function MarketHubContent() {
                         setSearch={setSearch}
                         filter={filter}
                         setFilter={setFilter}
+                        onRefresh={fetchMarkets}
                     />
                 )}
 
@@ -223,7 +224,8 @@ function MarketsSection({
     search,
     setSearch,
     filter,
-    setFilter
+    setFilter,
+    onRefresh
 }: {
     markets: MarketIndex[];
     loading: boolean;
@@ -231,20 +233,31 @@ function MarketsSection({
     setSearch: (s: string) => void;
     filter: MarketFilter;
     setFilter: (f: MarketFilter) => void;
+    onRefresh: () => void;
 }) {
     return (
         <div>
             {/* Search & Filter */}
             <div className="mb-4 space-y-3">
-                <div className="relative">
-                    <input
-                        type="text"
-                        placeholder="Search by author..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all font-mono text-sm"
-                    />
-                    <span className="absolute left-3 top-3.5 text-zinc-500">🔍</span>
+                <div className="flex gap-2">
+                    <div className="relative flex-1">
+                        <input
+                            type="text"
+                            placeholder="Search by author..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all font-mono text-sm"
+                        />
+                        <span className="absolute left-3 top-3.5 text-zinc-500">🔍</span>
+                    </div>
+                    <button
+                        onClick={onRefresh}
+                        disabled={loading}
+                        className="px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white hover:bg-zinc-800 active:scale-95 transition-all disabled:opacity-50"
+                        title="Refresh markets"
+                    >
+                        🔄
+                    </button>
                 </div>
 
                 <div className="flex gap-2">
