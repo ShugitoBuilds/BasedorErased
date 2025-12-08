@@ -108,29 +108,8 @@ export async function GET(req: NextRequest) {
                   </div>
                 </div>
               </>
-            ) : (
-              <>
-                <p
-                  style={{
-                    fontSize: '40px',
-                    color: '#e0e0e0',
-                    marginBottom: '20px',
-                    textAlign: 'center',
-                  }}
-                >
-                  Bet on Viral Moments
-                </p>
-                <p
-                  style={{
-                    fontSize: '28px',
-                    color: '#a0a0a0',
-                    textAlign: 'center',
-                  }}
-                >
-                  Turn engagement into trading opportunities
-                </p>
-              </>
-            )}
+            ) : null}
+
           </div>
         </div>
       ),
