@@ -17,7 +17,7 @@ const publicClient = createPublicClient({
 });
 
 const MARKET_CREATED_EVENT = parseAbiItem(
-    'event MarketCreated(uint256 indexed marketId, string castUrl, uint256 conditionId, uint256 deadline)'
+    'event MarketCreated(uint256 indexed marketId, string castUrl, uint256 threshold, uint256 deadline, address creator)'
 );
 
 export async function POST(req: NextRequest) {
@@ -60,12 +60,8 @@ export async function POST(req: NextRequest) {
         }
 
         if (!marketData) {
-            console.log('[Sync] Debug logs:', receipt.logs.map(l => ({ topics: l.topics, data: l.data })));
-            return NextResponse.json({
-                error: 'No MarketCreated event found in logs',
-                debugCount: receipt.logs.length,
-                logs: receipt.logs.map(l => l.topics[0]) // Return topic signatures to client for debug
-            }, { status: 400 });
+            console.error('[Sync] Event not found in logs. Receipt logs:', receipt.logs.length);
+            return NextResponse.json({ error: 'No MarketCreated event found in logs' }, { status: 400 });
         }
 
         console.log(`[Sync] Found Market Data:`, marketData);
