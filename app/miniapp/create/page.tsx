@@ -41,9 +41,17 @@ function CreateMarketContent() {
 
     return (
         <div className="min-h-screen bg-black text-white p-6 flex flex-col font-sans">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent mb-8">
-                Create Market
-            </h1>
+            <div className="flex items-center gap-4 mb-8">
+                <button
+                    onClick={() => router.back()}
+                    className="p-2 -ml-2 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-all"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                </button>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+                    Create Market
+                </h1>
+            </div>
 
             <div className="flex flex-col gap-6">
                 {/* Cast URL Input */}

@@ -8,7 +8,7 @@
 
 ## 1. Mission & Vision 🎯
 **"Based or Erased"** is a prediction market Mini App integrated natively into Farcaster.
-- **The Core Question:** "Will this Cast go viral (MOON) or flop (DOOM)?"
+- **The Core Question:** "Will this Cast go viral (Based) or flop (Erased)?"
 - **The Mechanic:** Users bet USDC on whether a specific Cast will hit a "Like Threshold" (e.g., 50 Power Likes) within 24 hours.
 - **The Vibe:** Crypto-native, high-stakes, fast-paced, and extremely "Based" aesthetics.
 
