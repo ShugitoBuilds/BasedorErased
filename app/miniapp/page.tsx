@@ -119,9 +119,9 @@ function MarketHubContent() {
                 <div className="p-4">
                     <div className="mb-4 flex justify-center">
                         <img
-                            src="/header.png"
+                            src="/based-or-erased-coin.png"
                             alt="Based or Erased"
-                            className="h-16 w-auto object-contain"
+                            className="h-32 w-auto object-contain"
                         />
                     </div>
 
