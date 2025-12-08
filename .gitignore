@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Windows reserved filename
 nul
+
+.vercel
+.env*.local

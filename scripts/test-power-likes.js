@@ -8,19 +8,59 @@ if (!NEYNAR_API_KEY) {
     process.exit(1);
 }
 
-async function getPowerLikes(castHash) {
-    console.log(`Checking Power Likes for Cast: ${castHash}`);
+const FAST_PATH_LIKES_THRESHOLD = 300;
 
-    let powerLikes = 0;
-    let totalLikesChecked = 0;
-    let cursor = null;
-    let page = 0;
-    const MAX_PAGES = 5;
+async function getPowerLikes(identifier) {
+    console.log(`Checking Cast: ${identifier}`);
 
     try {
+        // 1. Resolve Cast to get Hash AND Total Likes (Fast Path Check)
+        // This is the SAME logic as the optimized resolver.
+        const type = identifier.startsWith('0x') ? 'hash' : 'url';
+        const resolveUrl = `https://api.neynar.com/v2/farcaster/cast?identifier=${encodeURIComponent(identifier)}&type=${type}`;
+
+        const resolveRes = await fetch(resolveUrl, { headers: { 'api_key': NEYNAR_API_KEY } });
+
+        if (!resolveRes.ok) {
+            console.error(`Resolve Error: ${await resolveRes.text()}`);
+            return;
+        }
+
+        const resolveData = await resolveRes.json();
+        const cast = resolveData.cast;
+
+        if (!cast) {
+            console.error('Cast not found');
+            return;
+        }
+
+        const hash = cast.hash;
+        const totalLikes = cast.reactions.likes_count || 0;
+
+        console.log(`Total Likes: ${totalLikes}`);
+
+        // --- FAST PATH ---
+        if (totalLikes >= FAST_PATH_LIKES_THRESHOLD) {
+            console.log(`\n⚡ FAST PATH TRIGGERED ⚡`);
+            console.log(`Likes (${totalLikes}) > Threshold (${FAST_PATH_LIKES_THRESHOLD})`);
+            console.log(`Result: AUTOMATICALLY BASED (MOON)`);
+            console.log(`API Cost: 1 credit (This is the cheap path!)`);
+            return;
+        }
+
+        console.log(`\n🐢 Slow Path Required (${totalLikes} < ${FAST_PATH_LIKES_THRESHOLD})`);
+        console.log(`Fetching reactions to count power users...`);
+
+        // --- SLOW PATH ---
+        let powerLikes = 0;
+        let totalLikesChecked = 0;
+        let cursor = null;
+        let page = 0;
+        const MAX_PAGES = 5;
+
         do {
             const params = new URLSearchParams({
-                hash: castHash,
+                hash: hash,
                 types: 'likes',
                 limit: '100',
             });
@@ -55,22 +95,10 @@ async function getPowerLikes(castHash) {
                     const userData = await userRes.json();
                     const users = userData.users || [];
 
-                    if (users.length > 0 && page === 0) {
-                        try {
-                            console.log('DEBUG: First User Score:', users[0].score);
-                        } catch (e) { }
-                    }
-
                     for (const user of users) {
-                        // Use Score as Proxy. High score = Power User.
-                        // Threshold 0.9 is safer for "Power User", 0.7 for testing.
                         const score = user.score || user.experimental?.neynar_user_score || 0;
-                        if (score > 0.7) {
-                            powerLikes++;
-                        }
+                        if (score > 0.7) powerLikes++;
                     }
-                } else {
-                    console.error('User Bulk Fetch Error:', await userRes.text());
                 }
             }
 

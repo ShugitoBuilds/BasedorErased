@@ -18,6 +18,11 @@ const Outcome = {
     DOOM: 2,  // ERASED - missed the threshold
 } as const;
 
+// --- OPTIMIZATION CONSTANTS ---
+const FAST_PATH_LIKES_THRESHOLD = 300; // If total likes > 300, it's automatically MOON (Cost: 1 API call)
+const POWER_USER_THRESHOLD = 0.7;      // Neynar Score > 0.7 = Power User
+const SCORE_CACHE_DAYS = 7;            // Refresh score if older than 7 days
+
 // Initialize Viem Clients
 const account = privateKeyToAccount(DEPLOYER_PRIVATE_KEY);
 
@@ -36,50 +41,31 @@ const walletClient = createWalletClient({
  * Verify CRON_SECRET from request
  */
 function verifyCronSecret(req: NextRequest): boolean {
-    // Check Authorization header
     const authHeader = req.headers.get('authorization');
-    if (authHeader === `Bearer ${CRON_SECRET}`) {
-        return true;
-    }
+    if (authHeader === `Bearer ${CRON_SECRET}`) return true;
 
-    // Check query param (for Vercel Cron)
     const url = new URL(req.url);
-    const secretParam = url.searchParams.get('secret');
-    if (secretParam === CRON_SECRET) {
-        return true;
-    }
+    if (url.searchParams.get('secret') === CRON_SECRET) return true;
 
-    // Skip validation in development if no secret configured
     if (!CRON_SECRET) {
         console.warn('[Oracle] CRON_SECRET not configured, skipping auth');
         return true;
     }
-
     return false;
 }
 
 /**
  * Extract cast identifier from URL
- * Handles various Warpcast URL formats
  */
 function extractCastIdentifier(castUrl: string): string | null {
     try {
-        // Try to extract hash from URL like "https://warpcast.com/user/0xabc123"
         const hashMatch = castUrl.match(/\/0x([a-fA-F0-9]+)$/);
-        if (hashMatch) {
-            return `0x${hashMatch[1]}`;
-        }
+        if (hashMatch) return `0x${hashMatch[1]}`;
 
-        // Try to extract from short format like "https://warpcast.com/user/abc123def"
         const shortMatch = castUrl.match(/\/([a-zA-Z0-9]+)$/);
-        if (shortMatch) {
-            return shortMatch[1];
-        }
+        if (shortMatch) return shortMatch[1];
 
-        // If it's already a hash, return as-is
-        if (castUrl.startsWith('0x')) {
-            return castUrl;
-        }
+        if (castUrl.startsWith('0x')) return castUrl;
 
         return castUrl;
     } catch {
@@ -88,9 +74,7 @@ function extractCastIdentifier(castUrl: string): string | null {
 }
 
 /**
- * Fetch Power Likes from Neynar API (Paginated + Bulk User Fetch)
- * Filters for users with high reputation score (score > 0.9)
- * using Score as accurate proxy.
+ * Fetch Power Likes with Optimizations (Fast Path + Caching)
  */
 async function getPowerLikes(castUrl: string): Promise<number> {
     if (!NEYNAR_API_KEY) {
@@ -101,29 +85,37 @@ async function getPowerLikes(castUrl: string): Promise<number> {
     try {
         let identifier = extractCastIdentifier(castUrl) || castUrl;
 
-        let hash = identifier;
+        // 1. Resolve Cast to get Hash AND Total Likes (Fast Path Check)
+        const resolveUrl = `https://api.neynar.com/v2/farcaster/cast?identifier=${encodeURIComponent(identifier)}&type=${identifier.startsWith('0x') ? 'hash' : 'url'}`;
 
-        // If identifier looks like a URL (not starting with 0x), we need to resolve it to a hash first
-        if (!identifier.startsWith('0x')) {
-            const resolveRes = await fetch(
-                `https://api.neynar.com/v2/farcaster/cast?identifier=${encodeURIComponent(castUrl)}&type=url`,
-                { headers: { 'api_key': NEYNAR_API_KEY } }
-            );
-            if (resolveRes.ok) {
-                const data = await resolveRes.json();
-                hash = data.cast?.hash;
-            }
+        const resolveRes = await fetch(resolveUrl, { headers: { 'api_key': NEYNAR_API_KEY } });
+
+        if (!resolveRes.ok) {
+            console.error(`[Oracle] Resolve Error for ${castUrl}: ${await resolveRes.text()}`);
+            return 0; // Can't resolve
         }
 
-        if (!hash || !hash.startsWith('0x')) {
-            console.error(`[Oracle] Could not resolve hash for: ${castUrl}`);
-            return 0;
+        const resolveData = await resolveRes.json();
+        const cast = resolveData.cast;
+
+        if (!cast) return 0;
+
+        const hash = cast.hash;
+        const totalLikes = cast.reactions.likes_count || 0;
+
+        // --- FAST PATH ---
+        if (totalLikes >= FAST_PATH_LIKES_THRESHOLD) {
+            console.log(`[Oracle] ⚡ FAST PATH: ${totalLikes} total likes > ${FAST_PATH_LIKES_THRESHOLD}. Returning success.`);
+            return totalLikes; // Return total likes (which is >= threshold)
         }
 
+        console.log(`[Oracle] 🐢 Slow Path: ${totalLikes} likes. Counting Power Users...`);
+
+        // --- SLOW PATH: Count Power Users ---
         let powerLikes = 0;
         let cursor: string | null = null;
+        const MAX_PAGES = 10;
         let page = 0;
-        const MAX_PAGES = 5; // Check up to ~500 likes
 
         do {
             const params = new URLSearchParams({
@@ -138,54 +130,85 @@ async function getPowerLikes(castUrl: string): Promise<number> {
                 { headers: { 'api_key': NEYNAR_API_KEY } }
             );
 
-            if (!res.ok) {
-                console.error(`[Oracle] Error fetching likes page ${page}:`, await res.text());
-                break;
-            }
+            if (!res.ok) break;
 
             const data = await res.json();
             const reactions = data.reactions || [];
 
-            if (reactions.length > 0) {
-                // 1. Extract FIDs
-                const fids = reactions.map((r: any) => r.user.fid).join(',');
+            if (reactions.length === 0) break;
 
-                // 2. Fetch User Details (Bulk)
-                const userRes = await fetch(
-                    `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fids}`,
-                    { headers: { 'api_key': NEYNAR_API_KEY } }
-                );
+            const fids = reactions.map((r: any) => r.user.fid);
 
-                if (userRes.ok) {
-                    const userData = await userRes.json();
-                    const users = userData.users || [];
+            // --- CACHE LOOKUP ---
+            const { data: cachedScores } = await supabase
+                .from('user_scores')
+                .select('fid, score, last_updated')
+                .in('fid', fids);
 
-                    for (const user of users) {
-                        // High Reputation Check (Score > 0.9 or Power Badge)
-                        const score = user.score || user.experimental?.neynar_user_score || 0;
-                        if (score > 0.9 || user.power_badge === true) {
-                            powerLikes++;
+            const cachedMap = new Map(cachedScores?.map((s: any) => [s.fid, s]) || []);
+            const fidsToFetch: number[] = [];
+
+            for (const fid of fids) {
+                const cached = cachedMap.get(fid);
+                let hitCache = false;
+
+                if (cached) {
+                    const daysDiff = (Date.now() - new Date(cached.last_updated).getTime()) / (1000 * 3600 * 24);
+                    if (daysDiff < SCORE_CACHE_DAYS) {
+                        hitCache = true;
+                        if (Number(cached.score) > POWER_USER_THRESHOLD) powerLikes++;
+                    }
+                }
+
+                if (!hitCache) fidsToFetch.push(fid);
+            }
+
+            // --- BATCH FETCH NEW/STALE USERS ---
+            if (fidsToFetch.length > 0) {
+                // Fetch in chunks of 100 max (Neynar limit)
+                for (let i = 0; i < fidsToFetch.length; i += 100) {
+                    const batch = fidsToFetch.slice(i, i + 100);
+                    const userRes = await fetch(
+                        `https://api.neynar.com/v2/farcaster/user/bulk?fids=${batch.join(',')}`,
+                        { headers: { 'api_key': NEYNAR_API_KEY } }
+                    );
+
+                    if (userRes.ok) {
+                        const userData = await userRes.json();
+                        const users = userData.users || [];
+                        const upsertRows = [];
+
+                        for (const user of users) {
+                            const score = user.score || user.experimental?.neynar_user_score || 0;
+                            if (score > POWER_USER_THRESHOLD) powerLikes++;
+
+                            upsertRows.push({
+                                fid: user.fid,
+                                score: score,
+                                last_updated: new Date().toISOString()
+                            });
+                        }
+
+                        // Async update cache (fire and forget)
+                        if (upsertRows.length > 0) {
+                            supabase.from('user_scores').upsert(upsertRows).then(({ error }) => {
+                                if (error) console.error('[Oracle] Cache Upsert Error:', error);
+                            });
                         }
                     }
-                } else {
-                    console.error('[Oracle] User Bulk Fetch Error:', await userRes.text());
                 }
             }
 
             cursor = data.next?.cursor || null;
             page++;
-
-            if (page >= MAX_PAGES) {
-                console.warn(`[Oracle] Hit max pages (${MAX_PAGES}) for ${castUrl}. Stopping count at ${powerLikes}.`);
-                break;
-            }
+            if (page >= MAX_PAGES) break;
 
         } while (cursor);
 
         return powerLikes;
 
-    } catch (err) {
-        console.error(`[Oracle] Error fetching power likes for ${castUrl}:`, err);
+    } catch (err: any) {
+        console.error(`[Oracle] Error calculation:`, err);
         return 0;
     }
 }
@@ -205,7 +228,7 @@ async function resolveMarket(marketId: number, outcome: number): Promise<string 
         console.log(`[Oracle] Market #${marketId} resolved with tx: ${txHash}`);
         return txHash;
     } catch (err: any) {
-        console.error(`[Oracle] Failed to resolve market #${marketId}:`, err.message);
+        // console.error(`[Oracle] Failed to resolve market #${marketId}:`, err.message);
         return null;
     }
 }
@@ -223,23 +246,15 @@ interface MarketResult {
 export async function GET(req: NextRequest) {
     const startTime = Date.now();
     const results: MarketResult[] = [];
-
-    // Always return 200 to prevent cron retry spam
     const createResponse = (data: any) => NextResponse.json(data, { status: 200 });
 
     try {
         console.log('[Oracle] === Starting Resolution Cron ===');
 
-        // 1. Verify CRON_SECRET
         if (!verifyCronSecret(req)) {
-            console.error('[Oracle] Unauthorized request');
-            return createResponse({
-                success: false,
-                error: 'Unauthorized',
-            });
+            return createResponse({ success: false, error: 'Unauthorized' });
         }
 
-        // 2. Get total market count
         const nextMarketId = await publicClient.readContract({
             address: CONTRACT_ADDRESS,
             abi: contractABI,
@@ -247,26 +262,15 @@ export async function GET(req: NextRequest) {
         }) as bigint;
 
         const totalMarkets = Number(nextMarketId) - 1;
-        console.log(`[Oracle] Total markets: ${totalMarkets}`);
-
-        if (totalMarkets < 1) {
-            return createResponse({
-                success: true,
-                message: 'No markets to process',
-                processed: 0,
-                resolved: 0,
-            });
-        }
+        if (totalMarkets < 1) return createResponse({ success: true, processed: 0 });
 
         const now = Math.floor(Date.now() / 1000);
         let resolvedCount = 0;
         let pendingCount = 0;
         let errorCount = 0;
 
-        // 3. Iterate through all markets
         for (let id = 1; id <= totalMarkets; id++) {
             try {
-                // Fetch market data
                 const market = await publicClient.readContract({
                     address: CONTRACT_ADDRESS,
                     abi: contractABI,
@@ -274,12 +278,8 @@ export async function GET(req: NextRequest) {
                     args: [BigInt(id)],
                 }) as any;
 
-                // Skip already resolved markets
                 if (market.resolved) {
-                    results.push({
-                        marketId: id,
-                        status: 'skipped',
-                    });
+                    results.push({ marketId: id, status: 'skipped' });
                     continue;
                 }
 
@@ -287,113 +287,58 @@ export async function GET(req: NextRequest) {
                 const threshold = Number(market.threshold);
                 const castUrl = market.castUrl;
 
-                console.log(`[Oracle] Checking Market #${id}: ${threshold} Power Likes, deadline ${new Date(deadline * 1000).toISOString()}`);
-
-                // Fetch current likes from Neynar
                 const likes = await getPowerLikes(castUrl);
-                console.log(`[Oracle] Market #${id}: ${likes}/${threshold} Power Likes`);
 
                 let shouldResolve = false;
                 let outcome: number = Outcome.UNRESOLVED;
                 let outcomeStr = '';
 
-                // Condition A: BASED (hit threshold) - can resolve anytime
                 if (likes >= threshold) {
                     outcome = Outcome.MOON;
                     outcomeStr = 'BASED';
                     shouldResolve = true;
-                    console.log(`[Oracle] Market #${id}: BASED! 🟢 (${likes} >= ${threshold})`);
-                }
-                // Condition B: ERASED (deadline passed without hitting threshold)
-                else if (now > deadline) {
+                } else if (now > deadline) {
                     outcome = Outcome.DOOM;
                     outcomeStr = 'ERASED';
                     shouldResolve = true;
-                    console.log(`[Oracle] Market #${id}: ERASED! 🔻 (${likes} < ${threshold}, deadline passed)`);
-                }
-                // Still pending
-                else {
+                } else {
                     pendingCount++;
-                    results.push({
-                        marketId: id,
-                        status: 'pending',
-                        likes,
-                        threshold,
-                    });
-                    console.log(`[Oracle] Market #${id}: Still pending (${likes}/${threshold}, ${Math.round((deadline - now) / 60)}min remaining)`);
-                    console.log(`[Oracle] Market #${id}: Still pending (${likes}/${threshold}, ${Math.round((deadline - now) / 60)}min remaining)`);
+                    results.push({ marketId: id, status: 'pending', likes, threshold });
                     continue;
                 }
 
-                // --- SNAPSHOT CHECK FOR DELETED CASTS ---
-                // If likes are 0 and deadline hasn't fully passed (or even if it passed),
-                // it might be a Deleted Cast. A pure "0" is suspicious for a market that existed.
-                // Or if Neynar failed to resolve the hash.
-
                 if (likes === 0) {
-                    // Check if we have a snapshot
                     const { data: snapshot } = await supabase
                         .from('cast_snapshots')
                         .select('*')
                         .eq('market_id', id)
                         .single();
-
                     if (snapshot) {
-                        // We have proof this cast existed.
-                        // If proper Neynar check returned 0, it means it's likely deleted.
-                        // In "Based or Erased", a Deleted Cast = ERASED (Outcome: DOOM).
-                        console.warn(`[Oracle] Market #${id}: Cast likely deleted! Snapshot found. Treating as ERASED.`);
                         outcome = Outcome.DOOM;
                         outcomeStr = 'ERASED (Deleted)';
                         shouldResolve = true;
                     }
                 }
-                // ----------------------------------------
 
-                // Resolve the market on-chain
                 if (shouldResolve) {
                     const txHash = await resolveMarket(id, outcome);
-
                     if (txHash) {
                         resolvedCount++;
-                        results.push({
-                            marketId: id,
-                            status: 'resolved',
-                            outcome: outcomeStr,
-                            likes,
-                            threshold,
-                            txHash,
-                        });
+                        results.push({ marketId: id, status: 'resolved', outcome: outcomeStr, txHash });
                     } else {
                         errorCount++;
-                        results.push({
-                            marketId: id,
-                            status: 'error',
-                            error: 'Transaction failed',
-                            likes,
-                            threshold,
-                        });
+                        results.push({ marketId: id, status: 'error', error: 'Tx failed' });
                     }
                 }
 
-            } catch (marketErr: any) {
-                console.error(`[Oracle] Error processing market #${id}:`, marketErr.message);
+            } catch (err: any) {
                 errorCount++;
-                results.push({
-                    marketId: id,
-                    status: 'error',
-                    error: marketErr.message,
-                });
+                results.push({ marketId: id, status: 'error', error: err.message });
             }
-
-            // Small delay between markets to avoid rate limiting
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 100)); // Rate limit buffer
         }
 
         const duration = Date.now() - startTime;
-        console.log(`[Oracle] === Completed in ${duration}ms ===`);
-        console.log(`[Oracle] Resolved: ${resolvedCount}, Pending: ${pendingCount}, Errors: ${errorCount}`);
-
         return createResponse({
             success: true,
             processed: totalMarkets,
@@ -405,17 +350,10 @@ export async function GET(req: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error('[Oracle] Fatal error:', error);
-
-        return createResponse({
-            success: false,
-            error: error.message || 'Unknown error',
-            results,
-        });
+        return createResponse({ success: false, error: error.message });
     }
 }
 
-// POST handler for manual triggers
 export async function POST(req: NextRequest) {
     return GET(req);
 }
