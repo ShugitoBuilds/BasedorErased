@@ -117,11 +117,9 @@ function MarketHubContent() {
             <div className="sticky top-0 bg-black/95 backdrop-blur-md z-20 border-b border-white/10">
                 <div className="p-4">
                     <div className="mb-4 flex justify-center">
-                        <img
-                            src="/based-or-erased-banner.png"
-                            alt="Based or Erased"
-                            className="h-24 w-auto object-contain"
-                        />
+                        src="/based-or-erased-banner.png"
+                        alt="Based or Erased"
+                        className="h-48 w-auto object-contain"
                     </div>
 
                     {/* Tab Navigation */}
