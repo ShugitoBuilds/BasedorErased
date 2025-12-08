@@ -111,29 +111,12 @@ function MarketHubContent() {
             setLoading(false);
         }
     }
-
-    return (
-        <div className="min-h-screen bg-black text-white font-sans">
-            {/* Header with Tabs */}
-            <div className="sticky top-0 bg-black/95 backdrop-blur-md z-20 border-b border-white/10">
-                <div className="p-4">
-                    <div className="mb-4 flex justify-center">
-                        <img
-                            src="/based-or-erased-coin.png"
-                            alt="Based or Erased"
-                            className="h-32 w-auto object-contain"
-                        />
-                    </div>
-
-                    {/* Tab Navigation */}
-                    <div className="flex gap-2 overflow-x-auto pb-2">
-                        <TabButton
-                            active={activeTab === 'markets'}
-                            onClick={() => setActiveTab('markets')}
-                            icon="🎲"
-                        >
-                            Markets
-                        </TabButton>
+    onClick = {() => setActiveTab('markets')
+}
+icon = "🎲"
+    >
+    Markets
+                        </TabButton >
                         <TabButton
                             active={activeTab === 'mybets'}
                             onClick={() => setActiveTab('mybets')}
@@ -155,41 +138,43 @@ function MarketHubContent() {
                         >
                             Guide
                         </TabButton>
-                    </div>
-                </div>
-            </div>
+                    </div >
+                </div >
+            </div >
 
-            {/* Create FAB */}
-            <Link
-                href="/miniapp/create"
-                className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-green-400 to-purple-500 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all z-50 font-bold text-2xl"
-            >
-                +
-            </Link>
+    {/* Create FAB */ }
+    < Link
+href = "/miniapp/create"
+className = "fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-green-400 to-purple-500 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all z-50 font-bold text-2xl"
+    >
+    +
+            </Link >
 
-            {/* Tab Content */}
-            <div className="p-4 pb-24">
-                {activeTab === 'markets' && (
-                    <MarketsSection
-                        markets={markets}
-                        loading={loading}
-                        search={search}
-                        setSearch={setSearch}
-                        filter={filter}
-                        setFilter={setFilter}
-                        onRefresh={fetchMarkets}
-                    />
-                )}
+    {/* Tab Content */ }
+    < div className = "p-4 pb-24" >
+        { activeTab === 'markets' && (
+            <MarketsSection
+                markets={markets}
+                loading={loading}
+                search={search}
+                setSearch={setSearch}
+                filter={filter}
+                setFilter={setFilter}
+                onRefresh={fetchMarkets}
+            />
+        )}
 
-                {activeTab === 'mybets' && (
-                    <MyBetsSection address={address} isConnected={isConnected} />
-                )}
+{
+    activeTab === 'mybets' && (
+        <MyBetsSection address={address} isConnected={isConnected} />
+    )
+}
 
-                {activeTab === 'faq' && <FAQSection />}
+{ activeTab === 'faq' && <FAQSection /> }
 
-                {activeTab === 'guide' && <GuideSection />}
-            </div>
-        </div>
+{ activeTab === 'guide' && <GuideSection /> }
+            </div >
+        </div >
     );
 }
 
@@ -487,37 +472,23 @@ function GuideSection() {
                         <span className="text-zinc-400">Token:</span>
                         <span className="text-white font-mono">USDC (Testnet)</span>
                     </div>
-                    <div className="flex flex-col gap-1">
-                        <span className="text-zinc-400">Contract:</span>
-                        <a
-                            href={`https://sepolia.basescan.org/address/${process.env.NEXT_PUBLIC_CONTRACT_ADDRESS}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-purple-400 font-mono text-xs break-all hover:text-purple-300 transition-colors"
-                        >
-                            {process.env.NEXT_PUBLIC_CONTRACT_ADDRESS} ↗
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+                    );
 }
 
-export default function MarketHub() {
+                    export default function MarketHub() {
     return (
-        <WagmiProvider config={config}>
-            <QueryClientProvider client={queryClient}>
-                <div style={{ display: 'contents' }}>
-                    <React.Suspense fallback={
-                        <div className="min-h-screen bg-black text-white flex items-center justify-center">
-                            <div className="animate-pulse text-zinc-500">Loading Hub...</div>
-                        </div>
-                    }>
-                        <MarketHubContent />
-                    </React.Suspense>
-                </div>
-            </QueryClientProvider>
-        </WagmiProvider>
-    );
+                    <WagmiProvider config={config}>
+                        <QueryClientProvider client={queryClient}>
+                            <div style={{ display: 'contents' }}>
+                                <React.Suspense fallback={
+                                    <div className="min-h-screen bg-black text-white flex items-center justify-center">
+                                        <div className="animate-pulse text-zinc-500">Loading Hub...</div>
+                                    </div>
+                                }>
+                                    <MarketHubContent />
+                                </React.Suspense>
+                            </div>
+                        </QueryClientProvider>
+                    </WagmiProvider>
+                    );
 }
