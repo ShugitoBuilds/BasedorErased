@@ -488,23 +488,37 @@ function GuideSection() {
                         <span className="text-zinc-400">Token:</span>
                         <span className="text-white font-mono">USDC (Testnet)</span>
                     </div>
-                    );
+                    <div className="flex flex-col gap-1">
+                        <span className="text-zinc-400">Contract:</span>
+                        <a
+                            href={`https://sepolia.basescan.org/address/${process.env.NEXT_PUBLIC_CONTRACT_ADDRESS}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-purple-400 font-mono text-xs break-all hover:text-purple-300 transition-colors"
+                        >
+                            {process.env.NEXT_PUBLIC_CONTRACT_ADDRESS} ↗
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 }
 
-                    export default function MarketHub() {
+export default function MarketHub() {
     return (
-                    <WagmiProvider config={config}>
-                        <QueryClientProvider client={queryClient}>
-                            <div style={{ display: 'contents' }}>
-                                <React.Suspense fallback={
-                                    <div className="min-h-screen bg-black text-white flex items-center justify-center">
-                                        <div className="animate-pulse text-zinc-500">Loading Hub...</div>
-                                    </div>
-                                }>
-                                    <MarketHubContent />
-                                </React.Suspense>
-                            </div>
-                        </QueryClientProvider>
-                    </WagmiProvider>
-                    );
+        <WagmiProvider config={config}>
+            <QueryClientProvider client={queryClient}>
+                <div style={{ display: 'contents' }}>
+                    <React.Suspense fallback={
+                        <div className="min-h-screen bg-black text-white flex items-center justify-center">
+                            <div className="animate-pulse text-zinc-500">Loading Hub...</div>
+                        </div>
+                    }>
+                        <MarketHubContent />
+                    </React.Suspense>
+                </div>
+            </QueryClientProvider>
+        </WagmiProvider>
+    );
 }
