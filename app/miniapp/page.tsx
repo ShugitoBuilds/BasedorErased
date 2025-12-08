@@ -115,12 +115,17 @@ function MarketHubContent() {
         <div className="min-h-screen bg-black text-white font-sans">
             {/* Header with Tabs */}
             <div className="sticky top-0 bg-black/95 backdrop-blur-md z-20 border-b border-white/10">
-                <div className="p-4">
+                <div className="p-0 pb-4">
+                    {/* Build Timestamp Banner */}
+                    <div className="w-full bg-zinc-900 text-zinc-500 text-[10px] text-center py-1 font-mono border-b border-zinc-800 mb-4">
+                        Build: {new Date().toISOString().split('T')[1].split('.')[0]} UTC
+                    </div>
+
                     <div className="mb-4 flex justify-center">
                         <img
                             src="/based-or-erased-banner.png"
                             alt="Based or Erased"
-                            className="h-48 w-auto object-contain"
+                            className="h-auto max-h-32 w-full object-contain drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]"
                         />
                     </div>
 
