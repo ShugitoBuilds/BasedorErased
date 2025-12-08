@@ -85,6 +85,7 @@ function MarketHubContent() {
             let query = supabase
                 .from('market_index')
                 .select('*')
+                .neq('author_username', '@shugito') // Hide test markets
                 .order('created_at', { ascending: false });
 
             if (search) {
