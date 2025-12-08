@@ -25,16 +25,36 @@ function CreateMarketContent() {
     const [threshold, setThreshold] = useState(100);
     const [castUrl, setCastUrl] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
+    const [syncSuccess, setSyncSuccess] = useState(false);
 
-    // Trigger sync when transaction succeeds
-    if (isSuccess && hash && !isSyncing) {
-        // Note: In strict mode this might double fire, but our idempotent DB insert handles it.
-        // Ideally use specific useEffect, but for simplicity:
-        // We'll use a self-executing effect logic inside the component body or upgrade to useEffect.
-    }
+    useEffect(() => {
+        if (isSuccess && hash && !isSyncing && !syncSuccess) {
+            setIsSyncing(true);
+            console.log('Triggering Sync for:', hash);
 
-    // Better: Use useEffect to trigger once
-    import { useEffect } from 'react';
+            fetch('/api/sync/market', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ txHash: hash })
+            })
+                .then(async (res) => {
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        console.log('Sync Success:', data);
+                        setSyncSuccess(true);
+                    } else {
+                        console.error('Sync Failed:', data);
+                        alert('Market created on-chain but failed to sync to DB. Please refresh in a moment.');
+                    }
+                })
+                .catch(err => {
+                    console.error('Sync Error:', err);
+                })
+                .finally(() => {
+                    setIsSyncing(false);
+                });
+        }
+    }, [isSuccess, hash, isSyncing, syncSuccess]);
 
 
     async function handleCreate() {
