@@ -133,6 +133,7 @@ function CreateMarketContent() {
                             {syncSuccess ? 'Market Created & Synced!' : isSyncing ? 'Syncing to Database...' : 'Market Created!'}
                         </div>
                         {isSyncing && <div className="text-xs text-zinc-500 mb-2 animate-pulse"> finalizing... </div>}
+                        {!syncSuccess && !isSyncing && <div className="text-xs text-red-400 mb-2"> Sync failed. Please refresh. </div>}
                         <button
                             onClick={() => router.push('/miniapp')}
                             disabled={isSyncing}

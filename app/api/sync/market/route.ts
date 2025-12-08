@@ -60,7 +60,12 @@ export async function POST(req: NextRequest) {
         }
 
         if (!marketData) {
-            return NextResponse.json({ error: 'No MarketCreated event found in logs' }, { status: 400 });
+            console.log('[Sync] Debug logs:', receipt.logs.map(l => ({ topics: l.topics, data: l.data })));
+            return NextResponse.json({
+                error: 'No MarketCreated event found in logs',
+                debugCount: receipt.logs.length,
+                logs: receipt.logs.map(l => l.topics[0]) // Return topic signatures to client for debug
+            }, { status: 400 });
         }
 
         console.log(`[Sync] Found Market Data:`, marketData);
