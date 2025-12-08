@@ -39,7 +39,9 @@ function generateShareUrl(betType: 'BASED' | 'ERASED', marketId: number, thresho
 
 function MiniAppContent({ params }: { params: { id: string } }) {
   /* DYNAMIC MARKET ID LOGIC (Route Param) */
-  const marketId = parseInt(params.id);
+  const parsedId = parseInt(params.id);
+  const marketId = isNaN(parsedId) ? 0 : parsedId;
+  const isValidId = !isNaN(parsedId) && parsedId > 0;
 
   const [context, setContext] = useState<any>(null);
   const [market, setMarket] = useState<Market | null>(null);
@@ -98,7 +100,7 @@ function MiniAppContent({ params }: { params: { id: string } }) {
     functionName: 'getUserBet',
     args: address ? [BigInt(marketId), address] : undefined,
     query: {
-      enabled: !!address && !!market,
+      enabled: !!address && !!market && isValidId,
     },
   });
 
@@ -171,7 +173,7 @@ function MiniAppContent({ params }: { params: { id: string } }) {
     }
 
     initMiniApp();
-  }, [marketId]);
+  }, [marketId, isValidId]);
 
   const handleSwitchNetwork = async () => {
     try {
@@ -300,7 +302,7 @@ function MiniAppContent({ params }: { params: { id: string } }) {
     );
   }
 
-  if (!market) {
+  if (!market || !isValidId) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center p-6 font-sans">
         <div className="text-center">
