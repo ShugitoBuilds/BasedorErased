@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { WagmiProvider, useAccount } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '@/lib/wagmi';
+import { sdk } from '@farcaster/miniapp-sdk';
 
 // Safely initialize Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -52,6 +53,18 @@ function MarketHubContent() {
             </div>
         );
     }
+
+    // Initialize Farcaster SDK
+    useEffect(() => {
+        async function initSDK() {
+            try {
+                await sdk.actions.ready();
+            } catch (err) {
+                console.error('Failed to initialize Farcaster SDK:', err);
+            }
+        }
+        initSDK();
+    }, []);
 
     useEffect(() => {
         if (activeTab === 'markets') {
