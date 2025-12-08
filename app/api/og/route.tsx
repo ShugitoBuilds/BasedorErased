@@ -12,6 +12,8 @@ export async function GET(req: NextRequest) {
     const yesOdds = searchParams.get('yesOdds') || '65';
     const noOdds = searchParams.get('noOdds') || '35';
 
+    const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://basedorerased.vercel.app';
+
     return new ImageResponse(
       (
         <div
@@ -22,7 +24,7 @@ export async function GET(req: NextRequest) {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            background: '#000000',
+            background: '#0a0a0a', // Darker background to match app
             padding: '40px',
           }}
         >
@@ -32,39 +34,23 @@ export async function GET(req: NextRequest) {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'rgba(0, 0, 0, 0.6)',
+              background: 'rgba(0, 0, 0, 0.4)', // Slightly transparent
               borderRadius: '24px',
               padding: '60px',
               width: '90%',
               maxWidth: '900px',
             }}
           >
-            <div
+            <img
+              src={`${APP_URL}/based-or-erased-coin.png`}
+              width="800"
+              height="auto" // Adjust as needed
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                marginBottom: '20px',
+                objectFit: 'contain',
+                marginBottom: '20px'
               }}
-            >
-              <div
-                style={{
-                  fontSize: '48px',
-                  marginRight: '8px',
-                }}
-              >
-                🌙💥
-              </div>
-              <h1
-                style={{
-                  fontSize: '72px',
-                  fontWeight: 'bold',
-                  color: 'white',
-                }}
-              >
-                Moon or Doom
-              </h1>
-            </div>
+            />
+
 
             {step === 'market' ? (
               <>
