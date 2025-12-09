@@ -8,9 +8,13 @@ const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY!;
 const CRON_SECRET = process.env.CRON_SECRET;
 
 export async function GET(req: NextRequest) {
+    const startTime = Date.now();
+    console.log('[Cron:Sync] Starting execution...');
+
     // 1. Security Check
     const authHeader = req.headers.get('authorization');
     if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+        console.warn('[Cron:Sync] Unauthorized attempt');
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -24,11 +28,17 @@ export async function GET(req: NextRequest) {
             .select('market_id, cast_hash')
             .eq('status', 'active');
 
-        if (fetchError || !activeMarkets || activeMarkets.length === 0) {
-            return NextResponse.json({ message: 'No active markets to sync', error: fetchError });
+        if (fetchError) {
+            console.error('[Cron:Sync] Supabase Fetch Error:', fetchError);
+            return NextResponse.json({ error: fetchError.message }, { status: 500 });
         }
 
-        console.log(`Syncing active markets: ${activeMarkets.length}`);
+        if (!activeMarkets || activeMarkets.length === 0) {
+            console.log('[Cron:Sync] No active markets found. Exiting.');
+            return NextResponse.json({ message: 'No active markets to sync' });
+        }
+
+        console.log(`[Cron:Sync] Found ${activeMarkets.length} active markets. Processing...`);
 
         // 4. Batch Processing (Neynar limit is usually 50-100)
         const BATCH_SIZE = 50;
@@ -38,13 +48,15 @@ export async function GET(req: NextRequest) {
             const batch = activeMarkets.slice(i, i + BATCH_SIZE);
             const hashes = batch.map(m => m.cast_hash).join(',');
 
+            console.log(`[Cron:Sync] Processing batch ${Math.floor(i / BATCH_SIZE) + 1} (${batch.length} items)`);
+
             // 4a. Call Neynar
             const neynarRes = await fetch(`https://api.neynar.com/v2/farcaster/casts?casts=${hashes}`, {
                 headers: { 'api_key': NEYNAR_API_KEY }
             });
 
             if (!neynarRes.ok) {
-                console.error(`Neynar Batch Error (${i}):`, await neynarRes.text());
+                console.error(`[Cron:Sync] Neynar API Error (${neynarRes.status}):`, await neynarRes.text());
                 continue;
             }
 
@@ -59,39 +71,38 @@ export async function GET(req: NextRequest) {
                 updates.push({
                     cast_hash: cast.hash,
                     likes_count: count,
-                    // We match by cast_hash since market_id might not be in Neynar response easily without map
                 });
             }
         }
 
         // 5. Bulk Update Supabase
-        // We need to update rows where cast_hash matches. 
-        // Supabase `upsert` works if we have a unique constraint on cast_hash (we should).
-        // If not, we iterate transfers.
-        // Assuming cast_hash is unique or we have market_id mapped.
-
-        // Better: Map updates to include market_id
+        // Map updates to include market_id
         const updatesWithId = updates.map(u => {
             const match = activeMarkets.find(m => m.cast_hash === u.cast_hash);
             return match ? { market_id: match.market_id, likes_count: u.likes_count } : null;
         }).filter(u => u !== null);
 
         if (updatesWithId.length > 0) {
+            console.log(`[Cron:Sync] Updating ${updatesWithId.length} records in Supabase...`);
             const { error: updateError } = await supabase
                 .from('market_index')
-                .upsert(updatesWithId, { onConflict: 'market_id', ignoreDuplicates: false }); // ignoreDuplicates=false means update
+                .upsert(updatesWithId, { onConflict: 'market_id', ignoreDuplicates: false });
 
             if (updateError) throw updateError;
         }
 
+        const duration = Date.now() - startTime;
+        console.log(`[Cron:Sync] Success. Synced ${updatesWithId.length} markets in ${duration}ms.`);
+
         return NextResponse.json({
             success: true,
             synced: updatesWithId.length,
-            total_active: activeMarkets.length
+            total_active: activeMarkets.length,
+            duration_ms: duration
         });
 
     } catch (err: any) {
-        console.error('Sync Error:', err);
+        console.error('[Cron:Sync] Critical Error:', err);
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }

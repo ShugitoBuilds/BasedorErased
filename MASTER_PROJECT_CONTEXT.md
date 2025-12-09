@@ -2,7 +2,7 @@
 
 **Version:** 2.0.0 (Consolidated)
 **Status:** Testing & Verification (Sync Logic)
-**Last Updated:** December 08, 2025
+**Last Updated:** December 09, 2025
 
 ---
 
@@ -66,44 +66,34 @@ To prevent API overages (High Billable Usage):
 
 ## 4. Change Log 📝
 
+### v2.2.3 - Infrastructure & UX Scale-Up (Dec 9, 2025)
+*   **Infrastructure & Security:**
+    *   **Supabase Security:** Enabled Row Level Security (RLS) on all public tables.
+    *   **External Sync Engine:** Replaced Vercel Cron with **cron-job.org** to bypass deployment timeouts.
+        *   Endpoint: `/api/cron/sync` (Secured via `CRON_SECRET`).
+    *   **Deployment:** Switched to **Vercel CLI** to bypass stuck GitHub Webhooks.
+*   **Inline Betting UI:**
+    *   Replaced "Bet Now" popup with a sleek **Inline Betting** interface directly in the Market Card.
+*   **Versioning:**
+    *   Added visible build version banner (e.g., `v2.2.3 - Cron Active`) for instant verification.
+
 ### v2.1.0 - Real-Time Sync & Robustness (Dec 8, 2025)
 *   **Critical Sync Fixes:**
-    *   **ABI Mismatch Resolved:** Corrected `MarketCreated` event signature to match Solidity contract (`uint256 threshold`, `address creator` vs `uint256 conditionId`). This resolved the "No MarketCreated event found" error.
-    *   **Infinite Loop Prevention:** Added `syncAttempted` state to the client-side `useEffect` hook to ensure the sync API is called exactly once per transaction.
-    *   **Debug Logging:** Enhanced server-side logging to capture raw topics for ABI debugging.
+    *   **ABI Mismatch Resolved:** Corrected `MarketCreated` event signature.
+    *   **Infinite Loop Prevention:** Added `syncAttempted` state to client hooks.
 *   **UI/UX Improvements:**
-    *   **Visual Trust:** Added a "Build Timestamp" banner (Gray Strip) to the Mini App header for version verification during testing.
-    *   **Aesthetics:** Updated the "Based or Erased" banner image with a cropped version and switched to `h-auto` to eliminate dead space.
-    *   **Feedback:** Improved "Syncing..." and "Success/Failure" UI states in the Create Market flow.
+    *   **Visual Trust:** Added "Build Timestamp" banner.
 
 ### v2.0.0 - Optimization & Branding Overhaul (Dec 7, 2025)
-*   **Neynar API Optimization:**
-    *   Implemented "Fast Path" resolution (Instant MOON for viral casts).
-    *   Added Supabase DB Caching for user scores (7-day TTL).
-    *   Reduced API call volume by ~90% for high-traffic resolution.
-*   **Branding & Aesthetics:**
-    *   **New Logo:** "Based or Erased" Coin Logo for Splash/OG.
-    *   **New Banner:** "Based or Erased" text Banner for Mini App Header.
-    *   **UI Polish:** Increased Header Logo size to `h-48` (Maximum visibility).
-    *   **Fixes:** Resolved "Black Screen" on OG images by using `ArrayBuffer` fetching; Removed accidental "Desktop Screenshot" splash icon.
-*   **Cleanup:**
-    *   Consolidated documentation into `MASTER_PROJECT_CONTEXT.md`.
-    *   Removed stale splash assets (`splash-v2.png`, `splash.png`, etc.).
-
-### v1.0.0 - Feature Completion (Oct-Nov 2025)
-*   **Market Logic:** Implemented Core Betting (Moon/Doom), Resolution, and Claiming.
-*   **Integration:** Farcaster Frames v2 (Mini App) fully integrated.
-*   **Smart Contract:** Deployed to Base Sepolia with Protocol Fees enabled.
-*   **Domain:** Migrated to `basedorerased.vercel.app` (Signature updated).
+*   **Neynar API Optimization:** Fast Path resolution + Caching.
+*   **Branding:** New "Based or Erased" betting coin logo.
 
 ---
 
 ## 5. Future Roadmap 🚀
-*   **Immediate Focus (Next Session):** End-to-End Process Verification.
+*   **Immediate Focus:** End-to-End Process Verification.
     *   Verify Market Creation -> Database Sync.
     *   Verify Betting (Moon/Doom) updates odds in real-time.
     *   Verify Resolution (Time/Threshold met).
     *   Verify Claiming of Winnings.
-*   **Mainnet Launch:** Deploy contract to Base Mainnet (Real USDC).
-*   **Advanced Analytics:** Leaderboards for top predictors.
-*   **Social Sharing:** Auto-generate "I bet MOON" casts when betting.
+*   **Mainnet Launch:** Deploy contract to Base Mainnet.
