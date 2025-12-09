@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
 
         console.log(`[Sync] Found Market Data:`, marketData);
 
-        const { marketId, castUrl, deadline } = marketData;
+        const { marketId, castUrl, deadline, threshold } = marketData;
 
         // Insert into Supabase
         // We Map: marketId -> market_id, castUrl -> cast_url, deadline -> deadline
@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
         let authorUsername = 'unknown';
         let authorPfp = '';
         let castText = 'Content unavailable';
+        let likesCount = 0;
 
         if (process.env.NEYNAR_API_KEY) {
             try {
@@ -94,7 +95,10 @@ export async function POST(req: NextRequest) {
                     if (cast) {
                         authorUsername = cast.author.username;
                         authorPfp = cast.author.pfp_url;
+                        authorUsername = cast.author.username;
+                        authorPfp = cast.author.pfp_url;
                         castText = cast.text;
+                        likesCount = cast.reactions?.likes_count || 0;
                     }
                 } else {
                     console.warn('[Sync] Neynar Fetch Failed:', await neynarRes.text());
@@ -116,7 +120,9 @@ export async function POST(req: NextRequest) {
                 created_at: new Date().toISOString(),
                 author_username: authorUsername,
                 author_pfp_url: authorPfp,
-                cast_text: castText
+                cast_text: castText,
+                likes_count: likesCount,
+                threshold: threshold.toString()
             }, { onConflict: 'market_id' });
 
         if (error) {

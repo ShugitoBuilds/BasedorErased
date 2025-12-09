@@ -4,15 +4,15 @@ import React, { useEffect, useState } from 'react';
 import { sdk } from '@farcaster/miniapp-sdk';
 import { useSearchParams } from 'next/navigation';
 import { getMarket, getMoonOdds, getDoomOdds, formatUSDC, parseUSDC } from '@/lib/contract';
+import type { Market } from '@/lib/contract';
+import { createClient } from '@supabase/supabase-js';
+import Link from 'next/link';
 import { WagmiProvider, useAccount, useWriteContract, useSwitchChain, useChainId, useReadContract, useWaitForTransactionReceipt, useConnect, useBalance } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '@/lib/wagmi';
 import { parseAbi, erc20Abi, maxUint256 } from 'viem';
 import { baseSepolia } from 'wagmi/chains';
 import contractABI from '@/lib/contractABI.json';
-
-// Import Market type from contract lib
-import type { Market } from '@/lib/contract';
 
 interface UserBet {
   moonAmount: bigint;
@@ -28,9 +28,38 @@ const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://basedorerased.vercel.app';
 
-/**
- * Generate Warpcast share URL for a bet
- */
+// Safely initialize Supabase
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+const supabase = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
+
+function Countdown({ deadline }: { deadline: string }) {
+  const [timeLeft, setTimeLeft] = useState<string>('Loading...');
+
+  useEffect(() => {
+    function update() {
+      // Deadline can be BigInt from contract or ISO string from DB
+      const target = typeof deadline === 'string' ? new Date(deadline).getTime() : Number(deadline) * 1000;
+      const diff = target - Date.now();
+      if (diff <= 0) {
+        setTimeLeft('Ended');
+        return;
+      }
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      setTimeLeft(`${hours}h ${mins}m left`);
+    }
+    update();
+    const interval = setInterval(update, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, [deadline]);
+
+  return <span className="text-zinc-500 font-mono text-[10px]">{timeLeft}</span>;
+}
+
 function generateShareUrl(betType: 'BASED' | 'ERASED', marketId: number, threshold: string): string {
   const emoji = betType === 'BASED' ? '🟢' : '🔻';
   const text = `I just bet ${betType} ${emoji} on Based or Erased!\n\nWill this cast hit ${threshold} likes?\n\nJoin the prediction: ${APP_URL}/miniapp?marketId=${marketId}`;
@@ -45,6 +74,7 @@ function MiniAppContent({ params }: { params: { id: string } }) {
 
   const [context, setContext] = useState<any>(null);
   const [market, setMarket] = useState<Market | null>(null);
+  const [dbMarket, setDbMarket] = useState<any>(null);
   const [moonOdds, setMoonOdds] = useState<number>(50);
   const [doomOdds, setDoomOdds] = useState<number>(50);
   const [loading, setLoading] = useState(true);
@@ -55,7 +85,7 @@ function MiniAppContent({ params }: { params: { id: string } }) {
   const [lastBetType, setLastBetType] = useState<'BASED' | 'ERASED' | null>(null);
 
   /* Bet Amount State */
-  const [betAmount, setBetAmount] = useState<string>('5'); // Default 5 USDC
+  const [betAmount, setBetAmount] = useState<string>('5');
   const MAX_BET = 500;
   const MIN_BET = 1;
 
@@ -112,7 +142,6 @@ function MiniAppContent({ params }: { params: { id: string } }) {
     if (refetchUserBet) await refetchUserBet();
     if (refetchAllowance) await refetchAllowance();
 
-    // Refresh global market data
     try {
       const updatedMarket = await getMarket(marketId);
       if (updatedMarket) {
@@ -127,7 +156,6 @@ function MiniAppContent({ params }: { params: { id: string } }) {
     }
   };
 
-  // Effect to handle transaction confirmation updates with retries
   useEffect(() => {
     if (isConfirmed) {
       setShowSuccess(true);
@@ -145,12 +173,46 @@ function MiniAppContent({ params }: { params: { id: string } }) {
 
   const isWrongNetwork = chainId !== REQUIRED_CHAIN_ID;
 
+  // Initialize Farcaster SDK
+  useEffect(() => {
+    async function initSDK() {
+      try {
+        await sdk.actions.ready();
+      } catch (err) {
+        console.error('Failed to initialize Farcaster SDK:', err);
+      }
+    }
+    initSDK();
+  }, []);
+
+  // Fetch DB Market Data
+  useEffect(() => {
+    if (!supabase || !isValidId || marketId < 0) return;
+
+    async function fetchDbMarket() {
+      const { data, error } = await supabase!
+        .from('market_index')
+        .select('*')
+        .eq('market_id', marketId)
+        .single();
+
+      if (error) {
+        console.error('DB fetch error:', error);
+      } else if (data) {
+        setDbMarket(data);
+      }
+    }
+    fetchDbMarket();
+  }, [marketId, isValidId]);
+
+  // Init App & Contract Data
   useEffect(() => {
     async function initMiniApp() {
       try {
         const appContext = await sdk.context;
         setContext(appContext);
 
+        // Still try to get contract data but don't hard error if we have DB data
         const marketData = await getMarket(marketId);
         if (marketData) {
           setMarket(marketData);
@@ -159,15 +221,17 @@ function MiniAppContent({ params }: { params: { id: string } }) {
           setMoonOdds(moon);
           setDoomOdds(doom);
         } else {
-          setError(`Market #${marketId} not found.`);
+          console.warn(`Market #${marketId} not found on contract yet.`);
         }
 
         setLoading(false);
-        await sdk.actions.ready();
       } catch (err: any) {
         console.error('Mini App init error:', err);
         const errorMsg = err?.message || err?.name || 'Failed to initialize Mini App';
-        setError(errorMsg);
+        // Only set error if we don't have DB data either
+        if (!dbMarket) {
+          setError(errorMsg);
+        }
         setLoading(false);
       }
     }
@@ -216,7 +280,6 @@ function MiniAppContent({ params }: { params: { id: string } }) {
       return;
     }
 
-    // Validate Amount
     const amountNum = parseFloat(betAmount);
     if (isNaN(amountNum) || amountNum < MIN_BET) {
       setError(`Minimum bet is ${MIN_BET} USDC`);
@@ -232,18 +295,16 @@ function MiniAppContent({ params }: { params: { id: string } }) {
 
       if (ethBalance && ethBalance.value === 0n) {
         setError(
-          `Insufficient ETH for gas on ${REQUIRED_CHAIN_NAME}. \n` +
-          `You have 0 ETH. You need a small amount of ETH on this network to pay for transaction fees.\n` +
-          `Please switch to a wallet that has Base Sepolia ETH, or fund this wallet.`
+          `Insufficient ETH for gas on ${REQUIRED_CHAIN_NAME}.\n` +
+          `You have 0 ETH. You need a small amount of ETH on this network to pay for transaction fees.`
         );
         return;
       }
 
       if (usdcBalance !== undefined && usdcBalance < betAmountWei) {
         setError(
-          `Insufficient USDC balance on ${REQUIRED_CHAIN_NAME}. \n` +
-          `You have ${formatUSDC(usdcBalance)} USDC. You need ${betAmount} USDC to bet.\n` +
-          `Please switch to a wallet with testnet USDC, or use a faucet.`
+          `Insufficient USDC balance on ${REQUIRED_CHAIN_NAME}.\n` +
+          `You have ${formatUSDC(usdcBalance)} USDC. You need ${betAmount} USDC to bet.`
         );
         return;
       }
@@ -273,281 +334,216 @@ function MiniAppContent({ params }: { params: { id: string } }) {
     }
   };
 
-  if (loading) {
+  if (loading && !dbMarket) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center font-sans">
-        <div className="text-center animate-pulse">
-          <div className="text-6xl mb-6">🌙</div>
-          <div className="text-xl font-medium text-zinc-400">Loading Market...</div>
-        </div>
+      <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 text-center">
+        <div className="animate-pulse">Loading market...</div>
       </div>
     );
   }
 
-  if (error) {
+  if (error && !dbMarket && !market) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center p-6 font-sans">
-        <div className="text-center max-w-md w-full bg-zinc-900/50 p-8 rounded-3xl border border-red-500/20 backdrop-blur-xl">
-          <div className="text-5xl mb-6">⚠️</div>
-          <h2 className="text-xl font-bold mb-2 text-red-500">Action Required</h2>
-          <p className="text-sm text-zinc-400 whitespace-pre-wrap mb-8 leading-relaxed">{error}</p>
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 text-center">
+        <h1 className="text-red-500 text-2xl font-bold mb-2">Error</h1>
+        <p className="text-zinc-400 mb-4">{error}</p>
+        <Link href="/miniapp" className="px-4 py-2 bg-zinc-800 rounded-lg text-white">
+          Back to Hub
+        </Link>
+      </div>
+    );
+  }
+
+  // Display Data
+  const displayPfp = dbMarket?.author_pfp_url || '';
+  const displayUsername = dbMarket?.author_username || 'Loading...';
+  const displayText = dbMarket?.cast_text || 'Loading cast details...';
+  // Use Contract deadline preferably, else DB
+  const displayDeadline = market?.deadline ? market.deadline.toString() : dbMarket?.deadline;
+  const displayStatus = dbMarket?.status || (market?.resolved ? 'RESOLVED' : 'ACTIVE');
+  const likesCount = dbMarket?.likes_count || 0;
+  const threshold = dbMarket?.threshold || market?.threshold.toString() || '0';
+
+  return (
+    <div className="min-h-screen bg-black text-white font-sans p-4 pb-24">
+      {/* Back Button */}
+      <Link href="/miniapp" className="inline-flex items-center text-zinc-400 mb-4 text-sm hover:text-white transition-colors">
+        ← Back to Markets
+      </Link>
+
+      {/* User Info & Cast Preview */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mb-6">
+        <div className="flex items-center gap-3 mb-4">
+          {displayPfp ? (
+            <img src={displayPfp} alt={displayUsername} className="w-10 h-10 rounded-full border border-zinc-700" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500" />
+          )}
+          <div>
+            <div className="text-lg font-bold text-white">@{displayUsername}</div>
+            <div className="text-xs text-zinc-500 font-mono">Market #{marketId}</div>
+          </div>
+        </div>
+
+        <div className="text-zinc-200 text-lg font-medium leading-relaxed mb-4">
+          {displayText.length > 200 ? (
+            <span>
+              {displayText.substring(0, 200)}...
+              <a href={market?.castUrl || dbMarket?.cast_hash || '#'} target="_blank" rel="noopener noreferrer" className="text-purple-400 text-sm ml-1 hover:underline">Read more</a>
+            </span>
+          ) : (
+            <span>{displayText}</span>
+          )}
+        </div>
+
+        {/* Progress Bar */}
+        <div className="bg-zinc-950/50 rounded-xl p-3 border border-zinc-800/50">
+          <div className="flex justify-between text-xs text-zinc-400 mb-2">
+            <span>Progress</span>
+            <span className="text-white font-mono">{likesCount} / {threshold} Likes</span>
+          </div>
+          <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-700"
+              style={{
+                width: `${Math.min(100, Math.max(0, (likesCount / Number(threshold || 1)) * 100))}%`
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Timer & Status */}
+      <div className="flex justify-between items-center mb-6 px-2">
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${displayStatus === 'active' ? 'bg-green-500 animate-pulse' : 'bg-zinc-500'}`} />
+          <span className="text-sm font-bold tracking-wider">{displayStatus?.toUpperCase()}</span>
+        </div>
+        {displayDeadline && (
+          <div className="text-sm font-mono text-zinc-400 bg-zinc-900 px-3 py-1 rounded-lg border border-zinc-800">
+            <Countdown deadline={displayDeadline} />
+          </div>
+        )}
+      </div>
+
+      {/* Betting Interface */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold mb-2">Place Your Bet</h2>
+
+        {/* Amount Selector */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+          <label className="text-xs text-zinc-500 uppercase font-bold mb-2 block">Amount (USDC)</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              value={betAmount}
+              onChange={(e) => setBetAmount(e.target.value)}
+              className="w-full bg-transparent text-2xl font-mono font-bold text-white focus:outline-none placeholder-zinc-700"
+              placeholder="0.0"
+            />
+            <button
+              onClick={() => setBetAmount(usdcBalance ? formatUSDC(usdcBalance) : '0')}
+              className="px-2 py-1 text-xs bg-zinc-800 rounded text-zinc-400 hover:text-white"
+            >
+              MAX
+            </button>
+          </div>
+          {usdcBalance !== undefined && (
+            <div className="text-xs text-zinc-500 mt-2 text-right">
+              Balance: {formatUSDC(usdcBalance)} USDC
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {/* MOON Button */}
           <button
-            onClick={() => setError(null)}
-            className="w-full py-3 bg-red-500/10 text-red-500 rounded-xl font-bold hover:bg-red-500/20 transition-all active:scale-95"
+            onClick={() => handleBet(true)}
+            disabled={isConfirming || !isConnected}
+            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500 to-green-600 p-0.5 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-left"
           >
-            Dismiss
+            <div className="relative h-full w-full rounded-[14px] bg-black/10 px-4 py-6 backdrop-blur-sm transition-all group-hover:bg-opacity-0">
+              <div className="text-center">
+                <div className="text-3xl mb-1">🌕</div>
+                <div className="text-lg font-black text-white">BASED</div>
+                <div className="text-xs font-mono text-green-200 mt-1">Odds: {moonOdds}%</div>
+              </div>
+            </div>
+          </button>
+
+          {/* DOOM Button */}
+          <button
+            onClick={() => handleBet(false)}
+            disabled={isConfirming || !isConnected}
+            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-500 to-red-600 p-0.5 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-left"
+          >
+            <div className="relative h-full w-full rounded-[14px] bg-black/10 px-4 py-6 backdrop-blur-sm transition-all group-hover:bg-opacity-0">
+              <div className="text-center">
+                <div className="text-3xl mb-1">💀</div>
+                <div className="text-lg font-black text-white">ERASED</div>
+                <div className="text-xs font-mono text-red-200 mt-1">Odds: {doomOdds}%</div>
+              </div>
+            </div>
           </button>
         </div>
       </div>
-    );
-  }
 
-  if (!market || !isValidId) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center p-6 font-sans">
-        <div className="text-center">
-          <div className="text-6xl mb-6">🔍</div>
-          <div className="text-xl text-zinc-400">No market found</div>
-        </div>
-      </div>
-    );
-  }
-
-  const totalPool = formatUSDC(market.totalMoonBets + market.totalDoomBets);
-
-  return (
-    <div
-      className="min-h-screen text-white font-sans flex flex-col items-center"
-      style={{
-        background: 'radial-gradient(circle at 50% 0%, #1a1a1a 0%, #000000 100%)',
-      }}
-    >
-      <div className="w-full max-w-md p-4 flex flex-col gap-4">
-        {/* Header */}
-        <div className="text-center pt-2 flex justify-center">
-          <img
-            src="/header.png"
-            alt="Based or Erased"
-            className="h-24 w-auto object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] hover:scale-105 transition-transform duration-500"
-          />
-        </div>
-
-        {/* Transaction Status */}
-        {isConfirming && (
-          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 flex items-center gap-3 animate-pulse">
-            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-blue-400 font-medium text-xs">Processing transaction...</span>
-          </div>
-        )}
-        {showSuccess && (
-          <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 animate-in fade-in slide-in-from-top-2 duration-500">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="text-green-500 text-sm">✓</div>
-              <span className="text-green-400 font-medium text-xs">Transaction confirmed!</span>
-            </div>
-            {lastBetType && market && (
-              <a
-                href={generateShareUrl(lastBetType, marketId, market.threshold.toString())}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded-lg font-bold text-xs transition-all active:scale-95"
-              >
-                <span>🟣</span>
-                <span>Share on Farcaster</span>
-              </a>
-            )}
-          </div>
-        )}
-
-        {/* Connect Wallet Options */}
-        {!isConnected && (
-          <div className="text-center p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800 backdrop-blur-md">
-            <h3 className="text-sm font-bold mb-3 text-zinc-200">Connect Wallet</h3>
-            <div className="flex flex-col gap-2">
-              {connectors.map((connector) => (
-                <button
-                  key={connector.id}
-                  onClick={() => connect({ connector })}
-                  className="w-full bg-white text-black px-4 py-2.5 rounded-lg font-bold hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-white/5 text-sm"
-                >
-                  {connector.name.toLowerCase().includes('farcaster') && <span>🟣</span>}
-                  {connector.name.toLowerCase().includes('metamask') && <span>🦊</span>}
-                  <span>Connect {connector.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Market Card with Betting Interface */}
-        <div className="relative group perspective-1000">
-          <div
-            className="absolute -inset-0.5 bg-gradient-to-r from-teal-500/20 to-rose-500/20 rounded-3xl blur opacity-75 group-hover:opacity-100 transition duration-1000"
-          ></div>
-          <div className="relative rounded-3xl bg-[#0A0A0A] border border-zinc-800/50 p-5 backdrop-blur-xl ring-1 ring-white/10 flex flex-col gap-4">
-            {/* Market Info */}
-            <div>
-              <div className="flex justify-between items-start mb-2">
-                <span className="text-[10px] font-bold tracking-wider text-zinc-500 uppercase bg-zinc-900 px-2 py-0.5 rounded">
-                  Market #{marketId}
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => refreshData()}
-                    disabled={loading}
-                    className="text-[10px] font-medium text-zinc-500 hover:text-white transition-colors flex items-center gap-1"
-                  >
-                    🔄 Refresh
-                  </button>
-                  <span className="text-[10px] font-medium text-zinc-400 flex items-center gap-1">
-                    Pool: <span className="text-white font-bold">{totalPool} USDC</span>
-                  </span>
-                </div>
-              </div>
-
-              <h2 className="text-lg font-bold leading-tight mb-2 text-zinc-100">
-                Will this cast hit <span className="text-white border-b border-zinc-700">{market.threshold.toString()} likes</span>?
-              </h2>
-
-              <a
-                href={market.castUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors group/link mb-4"
-              >
-                View Cast <span className="group-hover/link:translate-x-0.5 transition-transform">→</span>
-              </a>
-            </div>
-
-            {/* Betting Interface */}
-            <div className="flex flex-col gap-3">
-              {/* Amount Input */}
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-zinc-500 font-bold">$</span>
-                </div>
-                <input
-                  type="number"
-                  value={betAmount}
-                  onChange={(e) => setBetAmount(e.target.value)}
-                  min="1"
-                  max="500"
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-8 pr-12 text-white font-bold placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-zinc-700 transition-all text-lg"
-                  placeholder="Amount"
-                />
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <span className="text-zinc-500 text-xs font-bold">USDC</span>
-                </div>
-              </div>
-
-              {/* Betting Buttons Grid */}
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => handleBet(true)}
-                  disabled={!isConnected || isConfirming}
-                  className="relative overflow-hidden p-3 rounded-xl border border-green-500/30 bg-gradient-to-br from-green-500/10 to-green-500/5 group hover:border-green-500/50 hover:from-green-500/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 text-left"
-                >
-                  <div className="absolute inset-0 bg-green-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                  <div className="relative z-10 flex flex-col">
-                    <span className="text-[10px] font-bold text-green-400 tracking-widest mb-1">BASED 🟢</span>
-                    <span className="text-2xl font-black text-white leading-none">
-                      {Math.round(moonOdds)}%
-                    </span>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => handleBet(false)}
-                  disabled={!isConnected || isConfirming}
-                  className="relative overflow-hidden p-3 rounded-xl border border-red-500/30 bg-gradient-to-br from-red-500/10 to-red-500/5 group hover:border-red-500/50 hover:from-red-500/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 text-left"
-                >
-                  <div className="absolute inset-0 bg-red-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                  <div className="relative z-10 flex flex-col">
-                    <span className="text-[10px] font-bold text-red-500 tracking-widest mb-1">ERASED 🔻</span>
-                    <span className="text-2xl font-black text-white leading-none">
-                      {Math.round(doomOdds)}%
-                    </span>
-                  </div>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Compact My Bets */}
-        {isConnected && userBet && (userBet.moonAmount > 0n || userBet.doomAmount > 0n) && (
-          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800 p-4 backdrop-blur-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Your Bets</h3>
-              {userBet?.claimed && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/20 uppercase">
-                  Paid
-                </span>
-              )}
-            </div>
-
-            <div className="flex gap-2">
-              {userBet?.moonAmount && userBet.moonAmount > 0n && (
-                <div className="flex-1 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20 flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-green-400">BASED</span>
-                  <span className="text-sm font-bold text-white">{formatUSDC(userBet.moonAmount)} $</span>
-                </div>
-              )}
-              {userBet?.doomAmount && userBet.doomAmount > 0n && (
-                <div className="flex-1 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-red-400">ERASED</span>
-                  <span className="text-sm font-bold text-white">{formatUSDC(userBet.doomAmount)} $</span>
-                </div>
-              )}
-            </div>
-
-            {market?.resolved && !userBet?.claimed && (
-              (market.outcome === 1 && userBet.moonAmount > 0n) ||
-              (market.outcome === 2 && userBet.doomAmount > 0n)
-            ) && (
-                <button
-                  onClick={handleClaim}
-                  className="w-full mt-3 py-2.5 rounded-lg font-bold text-sm text-black bg-white hover:bg-zinc-100 hover:scale-[1.02] active:scale-95 transition-all shadow-lg"
-                >
-                  🎉 Claim Winnings
-                </button>
-              )}
-          </div>
-        )}
-
-        {/* Network Error */}
-        {isWrongNetwork && (
-          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">⚠️</span>
-              <span className="text-red-400 font-medium text-sm">Wrong Network</span>
-            </div>
+      {/* Connect Wallet Prompt (if not connected) */}
+      {!isConnected && (
+        <div className="mt-8 bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 text-center">
+          <p className="text-purple-200 mb-3 text-sm">Connect wallet to start betting</p>
+          {connectors.map((connector) => (
             <button
-              onClick={handleSwitchNetwork}
-              className="w-full py-1.5 bg-red-500/20 text-red-500 rounded-lg font-bold text-sm hover:bg-red-500/30 transition-colors"
+              key={connector.uid}
+              onClick={() => connect({ connector })}
+              className="w-full bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-500 transition-all mb-2"
             >
-              Switch to {REQUIRED_CHAIN_NAME}
+              Connect {connector.name}
             </button>
+          ))}
+        </div>
+      )}
+
+      {showSuccess && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-purple-500 rounded-3xl p-6 w-full max-w-sm text-center animate-bounce-in relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-blue-500/10 pointer-events-none" />
+            <div className="text-5xl mb-4 animate-pulse">
+              {lastBetType === 'BASED' ? '🌕' : '💀'}
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">Bet Placed!</h3>
+            <p className="text-zinc-400 mb-6">Good luck, adventurer.</p>
+
+            <div className="flex flex-col gap-3">
+              <a
+                href={generateShareUrl(lastBetType!, marketId, threshold.toString())}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 bg-[#472a91] text-white font-bold rounded-xl hover:bg-[#5b3db5] transition-all flex items-center justify-center gap-2"
+              >
+                <span>Share on Warpcast</span>
+                <span>↗</span>
+              </a>
+              <button
+                onClick={() => setShowSuccess(false)}
+                className="w-full py-3 bg-zinc-800 text-zinc-300 font-bold rounded-xl hover:bg-zinc-700"
+              >
+                Close
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
 
-export default function MarketPage({ params }: { params: { id: string } }) {
+// Ensure the default export is wrapped with providers
+export default function MiniAppPage({ params }: { params: { id: string } }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <div style={{ display: 'contents' }}>
-          <React.Suspense fallback={
-            <div className="min-h-screen bg-black text-white flex items-center justify-center font-sans">
-              <div className="animate-pulse text-zinc-500">Loading App...</div>
-            </div>
-          }>
-            <MiniAppContent params={params} />
-          </React.Suspense>
-        </div>
+        <MiniAppContent params={params} />
       </QueryClientProvider>
     </WagmiProvider>
   );

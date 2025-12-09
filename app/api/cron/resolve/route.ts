@@ -1,359 +1,148 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createWalletClient, createPublicClient, http } from 'viem';
+import { createClient } from '@supabase/supabase-js';
+import { createWalletClient, http, publicActions } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import contractABI from '@/lib/contractABI.json';
-import { supabase } from '@/lib/supabaseClient';
 
 // --- CONFIG ---
-const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
-const CRON_SECRET = process.env.CRON_SECRET;
-const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!; // Service role key preferred for admin actions, but anon might suffice if RLS allows or we use server logic
+// Note: For actual admin writes to 'market_index' that might be protected, consider using SUPABASE_SERVICE_ROLE_KEY if available. 
+// For now, using what we have. If RLS blocks updates, user might need to add SERVICE_KEY.
+
+const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY!;
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`;
+const ADMIN_PRIVATE_KEY = (process.env.ADMIN_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY) as `0x${string}`; // Checked: User has DEPLOYER_PRIVATE_KEY
+const CRON_SECRET = process.env.CRON_SECRET;
 
-// Outcome enum matching contract
-const Outcome = {
-    UNRESOLVED: 0,
-    MOON: 1,  // BASED - hit the threshold
-    DOOM: 2,  // ERASED - missed the threshold
-} as const;
-
-// --- OPTIMIZATION CONSTANTS ---
-const FAST_PATH_LIKES_THRESHOLD = 300; // If total likes > 300, it's automatically MOON (Cost: 1 API call)
-const POWER_USER_THRESHOLD = 0.7;      // Neynar Score > 0.7 = Power User
-const SCORE_CACHE_DAYS = 7;            // Refresh score if older than 7 days
-
-// Initialize Viem Clients
-const account = privateKeyToAccount(DEPLOYER_PRIVATE_KEY);
-
-const publicClient = createPublicClient({
-    chain: baseSepolia,
-    transport: http(),
-});
-
-const walletClient = createWalletClient({
-    account,
-    chain: baseSepolia,
-    transport: http(),
-});
-
-/**
- * Verify CRON_SECRET from request
- */
-function verifyCronSecret(req: NextRequest): boolean {
-    const authHeader = req.headers.get('authorization');
-    if (authHeader === `Bearer ${CRON_SECRET}`) return true;
-
-    const url = new URL(req.url);
-    if (url.searchParams.get('secret') === CRON_SECRET) return true;
-
-    if (!CRON_SECRET) {
-        console.warn('[Oracle] CRON_SECRET not configured, skipping auth');
-        return true;
-    }
-    return false;
-}
-
-/**
- * Extract cast identifier from URL
- */
-function extractCastIdentifier(castUrl: string): string | null {
-    try {
-        const hashMatch = castUrl.match(/\/0x([a-fA-F0-9]+)$/);
-        if (hashMatch) return `0x${hashMatch[1]}`;
-
-        const shortMatch = castUrl.match(/\/([a-zA-Z0-9]+)$/);
-        if (shortMatch) return shortMatch[1];
-
-        if (castUrl.startsWith('0x')) return castUrl;
-
-        return castUrl;
-    } catch {
-        return castUrl;
-    }
-}
-
-/**
- * Fetch Power Likes with Optimizations (Fast Path + Caching)
- */
-async function getPowerLikes(castUrl: string): Promise<number> {
-    if (!NEYNAR_API_KEY) {
-        console.warn('[Oracle] No NEYNAR_API_KEY, returning mock likes');
-        return 0;
-    }
-
-    try {
-        let identifier = extractCastIdentifier(castUrl) || castUrl;
-
-        // 1. Resolve Cast to get Hash AND Total Likes (Fast Path Check)
-        const resolveUrl = `https://api.neynar.com/v2/farcaster/cast?identifier=${encodeURIComponent(identifier)}&type=${identifier.startsWith('0x') ? 'hash' : 'url'}`;
-
-        const resolveRes = await fetch(resolveUrl, { headers: { 'api_key': NEYNAR_API_KEY } });
-
-        if (!resolveRes.ok) {
-            console.error(`[Oracle] Resolve Error for ${castUrl}: ${await resolveRes.text()}`);
-            return 0; // Can't resolve
-        }
-
-        const resolveData = await resolveRes.json();
-        const cast = resolveData.cast;
-
-        if (!cast) return 0;
-
-        const hash = cast.hash;
-        const totalLikes = cast.reactions.likes_count || 0;
-
-        // --- FAST PATH ---
-        if (totalLikes >= FAST_PATH_LIKES_THRESHOLD) {
-            console.log(`[Oracle] ⚡ FAST PATH: ${totalLikes} total likes > ${FAST_PATH_LIKES_THRESHOLD}. Returning success.`);
-            return totalLikes; // Return total likes (which is >= threshold)
-        }
-
-        console.log(`[Oracle] 🐢 Slow Path: ${totalLikes} likes. Counting Power Users...`);
-
-        // --- SLOW PATH: Count Power Users ---
-        let powerLikes = 0;
-        let cursor: string | null = null;
-        const MAX_PAGES = 10;
-        let page = 0;
-
-        do {
-            const params = new URLSearchParams({
-                hash: hash,
-                types: 'likes',
-                limit: '100',
-            });
-            if (cursor) params.append('cursor', cursor);
-
-            const res = await fetch(
-                `https://api.neynar.com/v2/farcaster/reactions/cast?${params.toString()}`,
-                { headers: { 'api_key': NEYNAR_API_KEY } }
-            );
-
-            if (!res.ok) break;
-
-            const data = await res.json();
-            const reactions = data.reactions || [];
-
-            if (reactions.length === 0) break;
-
-            const fids = reactions.map((r: any) => r.user.fid);
-
-            // --- CACHE LOOKUP ---
-            const { data: cachedScores } = await supabase
-                .from('user_scores')
-                .select('fid, score, last_updated')
-                .in('fid', fids);
-
-            const cachedMap = new Map(cachedScores?.map((s: any) => [s.fid, s]) || []);
-            const fidsToFetch: number[] = [];
-
-            for (const fid of fids) {
-                const cached = cachedMap.get(fid);
-                let hitCache = false;
-
-                if (cached) {
-                    const daysDiff = (Date.now() - new Date(cached.last_updated).getTime()) / (1000 * 3600 * 24);
-                    if (daysDiff < SCORE_CACHE_DAYS) {
-                        hitCache = true;
-                        if (Number(cached.score) > POWER_USER_THRESHOLD) powerLikes++;
-                    }
-                }
-
-                if (!hitCache) fidsToFetch.push(fid);
-            }
-
-            // --- BATCH FETCH NEW/STALE USERS ---
-            if (fidsToFetch.length > 0) {
-                // Fetch in chunks of 100 max (Neynar limit)
-                for (let i = 0; i < fidsToFetch.length; i += 100) {
-                    const batch = fidsToFetch.slice(i, i + 100);
-                    const userRes = await fetch(
-                        `https://api.neynar.com/v2/farcaster/user/bulk?fids=${batch.join(',')}`,
-                        { headers: { 'api_key': NEYNAR_API_KEY } }
-                    );
-
-                    if (userRes.ok) {
-                        const userData = await userRes.json();
-                        const users = userData.users || [];
-                        const upsertRows = [];
-
-                        for (const user of users) {
-                            const score = user.score || user.experimental?.neynar_user_score || 0;
-                            if (score > POWER_USER_THRESHOLD) powerLikes++;
-
-                            upsertRows.push({
-                                fid: user.fid,
-                                score: score,
-                                last_updated: new Date().toISOString()
-                            });
-                        }
-
-                        // Async update cache (fire and forget)
-                        if (upsertRows.length > 0) {
-                            supabase.from('user_scores').upsert(upsertRows).then(({ error }) => {
-                                if (error) console.error('[Oracle] Cache Upsert Error:', error);
-                            });
-                        }
-                    }
-                }
-            }
-
-            cursor = data.next?.cursor || null;
-            page++;
-            if (page >= MAX_PAGES) break;
-
-        } while (cursor);
-
-        return powerLikes;
-
-    } catch (err: any) {
-        console.error(`[Oracle] Error calculation:`, err);
-        return 0;
-    }
-}
-
-/**
- * Resolve a single market on-chain
- */
-async function resolveMarket(marketId: number, outcome: number): Promise<string | null> {
-    try {
-        const txHash = await walletClient.writeContract({
-            address: CONTRACT_ADDRESS,
-            abi: contractABI,
-            functionName: 'resolveMarket',
-            args: [BigInt(marketId), outcome],
-        });
-
-        console.log(`[Oracle] Market #${marketId} resolved with tx: ${txHash}`);
-        return txHash;
-    } catch (err: any) {
-        // console.error(`[Oracle] Failed to resolve market #${marketId}:`, err.message);
-        return null;
-    }
-}
-
-interface MarketResult {
-    marketId: number;
-    status: 'resolved' | 'pending' | 'skipped' | 'error';
-    outcome?: string;
-    likes?: number;
-    threshold?: number;
-    txHash?: string;
-    error?: string;
-}
+// Helper to determine outcome
+const OUTCOME_BASED = 1; // MOON
+const OUTCOME_ERASED = 2; // DOOM
 
 export async function GET(req: NextRequest) {
-    const startTime = Date.now();
-    const results: MarketResult[] = [];
-    const createResponse = (data: any) => NextResponse.json(data, { status: 200 });
+    // 1. Security Check
+    const authHeader = req.headers.get('authorization');
+    if (authHeader !== `Bearer ${CRON_SECRET}`) {
+        // Allow local testing if no secret set, or strictly enforce? 
+        // For now, strict if secret exists.
+        if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+    }
+
+    if (!ADMIN_PRIVATE_KEY) {
+        return NextResponse.json({ error: 'Missing ADMIN_PRIVATE_KEY' }, { status: 500 });
+    }
 
     try {
-        console.log('[Oracle] === Starting Resolution Cron ===');
+        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        if (!verifyCronSecret(req)) {
-            return createResponse({ success: false, error: 'Unauthorized' });
+        // 2. Fetch Expired & Active Markets
+        // "Active" markets where "Deadline" has passed.
+        const nowIso = new Date().toISOString();
+        const { data: expiredMarkets, error: dbError } = await supabase
+            .from('market_index')
+            .select('*')
+            .eq('status', 'active')
+            .lt('deadline', nowIso);
+
+        if (dbError) throw new Error(`DB Error: ${dbError.message}`);
+        if (!expiredMarkets || expiredMarkets.length === 0) {
+            return NextResponse.json({ message: 'No markets to resolve' });
         }
 
-        const nextMarketId = await publicClient.readContract({
-            address: CONTRACT_ADDRESS,
-            abi: contractABI,
-            functionName: 'nextMarketId',
-        }) as bigint;
+        console.log(`Found ${expiredMarkets.length} markets to resolve.`);
+        const results = [];
 
-        const totalMarkets = Number(nextMarketId) - 1;
-        if (totalMarkets < 1) return createResponse({ success: true, processed: 0 });
+        // 3. Setup Wallet
+        const account = privateKeyToAccount(ADMIN_PRIVATE_KEY);
+        const walletClient = createWalletClient({
+            account,
+            chain: baseSepolia,
+            transport: http()
+        }).extend(publicActions);
 
-        const now = Math.floor(Date.now() / 1000);
-        let resolvedCount = 0;
-        let pendingCount = 0;
-        let errorCount = 0;
-
-        for (let id = 1; id <= totalMarkets; id++) {
+        // 4. Loop & Resolve
+        for (const market of expiredMarkets) {
             try {
-                const market = await publicClient.readContract({
+                // A. Fetch Neynar Data
+                // Optimize: Use cast_hash or url? API takes hash or url.
+                // Cast hash is 'cast_hash' in DB.
+                const castHash = market.cast_hash;
+                if (!castHash) {
+                    console.error(`Market ${market.market_id} missing cast_hash`);
+                    continue;
+                }
+
+                const neynarRes = await fetch(`https://api.neynar.com/v2/farcaster/cast?type=hash&identifier=${castHash}`, {
+                    headers: { 'api_key': NEYNAR_API_KEY }
+                });
+
+                if (!neynarRes.ok) {
+                    throw new Error(`Neynar API error: ${neynarRes.status}`);
+                }
+
+                const neynarData = await neynarRes.json();
+                const cast = neynarData.cast;
+
+                // Get Likes
+                const likesCount = cast.reactions.likes_count;
+                const threshold = parseInt(market.threshold || '0');
+
+                // Determine Outcome
+                // Logic: If likes >= threshold -> BASED (Winner). Else ERASED.
+                const outcome = likesCount >= threshold ? OUTCOME_BASED : OUTCOME_ERASED;
+
+                console.log(`Resolving Market ${market.market_id}: Likes ${likesCount} vs Threshold ${threshold} -> Outcome ${outcome === 1 ? 'BASED' : 'ERASED'}`);
+
+                // B. Execute On-Chain
+                // Check if already resolved on chain? (Optional optimization, but contract handles it)
+                const txHash = await walletClient.writeContract({
                     address: CONTRACT_ADDRESS,
                     abi: contractABI,
-                    functionName: 'getMarket',
-                    args: [BigInt(id)],
-                }) as any;
+                    functionName: 'resolveMarket',
+                    args: [BigInt(market.market_id), outcome]
+                });
 
-                if (market.resolved) {
-                    results.push({ marketId: id, status: 'skipped' });
-                    continue;
-                }
+                console.log(`Tx Sent: ${txHash}`);
 
-                const deadline = Number(market.deadline);
-                const threshold = Number(market.threshold);
-                const castUrl = market.castUrl;
+                // Wait for receipt? Or trust cron will retry if DB update fails? 
+                // Better to wait to ensure consistency.
+                const receipt = await walletClient.waitForTransactionReceipt({ hash: txHash });
 
-                const likes = await getPowerLikes(castUrl);
+                if (receipt.status === 'success') {
+                    // C. Update DB
+                    const { error: updateError } = await supabase
+                        .from('market_index')
+                        .update({
+                            status: 'resolved',
+                            likes_count: likesCount // Save final count
+                        })
+                        .eq('market_id', market.market_id);
 
-                let shouldResolve = false;
-                let outcome: number = Outcome.UNRESOLVED;
-                let outcomeStr = '';
+                    if (updateError) console.error(`Failed to update DB for ${market.market_id}:`, updateError);
 
-                if (likes >= threshold) {
-                    outcome = Outcome.MOON;
-                    outcomeStr = 'BASED';
-                    shouldResolve = true;
-                } else if (now > deadline) {
-                    outcome = Outcome.DOOM;
-                    outcomeStr = 'ERASED';
-                    shouldResolve = true;
+                    results.push({
+                        id: market.market_id,
+                        status: 'resolved',
+                        outcome: outcome === 1 ? 'BASED' : 'ERASED',
+                        tx: txHash
+                    });
                 } else {
-                    pendingCount++;
-                    results.push({ marketId: id, status: 'pending', likes, threshold });
-                    continue;
-                }
-
-                if (likes === 0) {
-                    const { data: snapshot } = await supabase
-                        .from('cast_snapshots')
-                        .select('*')
-                        .eq('market_id', id)
-                        .single();
-                    if (snapshot) {
-                        outcome = Outcome.DOOM;
-                        outcomeStr = 'ERASED (Deleted)';
-                        shouldResolve = true;
-                    }
-                }
-
-                if (shouldResolve) {
-                    const txHash = await resolveMarket(id, outcome);
-                    if (txHash) {
-                        resolvedCount++;
-                        results.push({ marketId: id, status: 'resolved', outcome: outcomeStr, txHash });
-                    } else {
-                        errorCount++;
-                        results.push({ marketId: id, status: 'error', error: 'Tx failed' });
-                    }
+                    throw new Error(`Tx reverted: ${txHash}`);
                 }
 
             } catch (err: any) {
-                errorCount++;
-                results.push({ marketId: id, status: 'error', error: err.message });
+                console.error(`Failed to resolve market ${market.market_id}:`, err);
+                results.push({ id: market.market_id, error: err.message });
             }
-            await new Promise(resolve => setTimeout(resolve, 100)); // Rate limit buffer
         }
 
-        const duration = Date.now() - startTime;
-        return createResponse({
-            success: true,
-            processed: totalMarkets,
-            resolved: resolvedCount,
-            pending: pendingCount,
-            errors: errorCount,
-            duration: `${duration}ms`,
-            results,
-        });
+        return NextResponse.json({ success: true, results });
 
     } catch (error: any) {
-        return createResponse({ success: false, error: error.message });
+        console.error('Cron job failed:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
-}
-
-export async function POST(req: NextRequest) {
-    return GET(req);
 }
