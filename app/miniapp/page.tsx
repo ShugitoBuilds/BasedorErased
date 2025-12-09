@@ -64,6 +64,10 @@ function MarketHubContent() {
     const [filter, setFilter] = useState<MarketFilter>('all');
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
+
+    // ... (rest of code)
+
 
     if (!supabase) {
         return (
@@ -124,9 +128,11 @@ function MarketHubContent() {
             const { data, error } = await query;
             if (error) {
                 console.error('Error fetching markets:', error);
+                setFetchError(error.message);
             }
             if (data) {
                 setMarkets(data);
+                setFetchError(null);
             }
         } catch (err) {
             console.error('Unexpected error fetching markets:', err);
@@ -201,6 +207,7 @@ function MarketHubContent() {
                     <MarketsSection
                         markets={markets}
                         loading={loading}
+                        fetchError={fetchError}
                         search={search}
                         setSearch={setSearch}
                         filter={filter}
@@ -249,6 +256,7 @@ function TabButton({ active, onClick, icon, children }: {
 function MarketsSection({
     markets,
     loading,
+    fetchError,
     search,
     setSearch,
     filter,
@@ -257,6 +265,7 @@ function MarketsSection({
 }: {
     markets: MarketIndex[];
     loading: boolean;
+    fetchError: string | null;
     search: string;
     setSearch: (s: string) => void;
     filter: MarketFilter;
@@ -301,6 +310,13 @@ function MarketsSection({
                 </div>
             </div>
 
+            {/* Error Banner */}
+            {fetchError && (
+                <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl mb-4 text-red-200 text-sm">
+                    Error loading markets: {fetchError}
+                </div>
+            )}
+
             {/* Market List */}
             {loading ? (
                 <div className="flex flex-col gap-4">
@@ -317,12 +333,11 @@ function MarketsSection({
             ) : (
                 <div className="grid grid-cols-1 gap-4">
                     {markets.map((market) => (
-                        <Link
+                        <div
                             key={market.market_id}
-                            href={`/miniapp/market/${market.market_id}`}
-                            className="block group"
+                            className="block group bg-zinc-900 border border-zinc-800 rounded-2xl p-4 transition-all hover:border-purple-500/50 hover:bg-zinc-800/50"
                         >
-                            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 transition-all group-hover:border-purple-500/50 group-hover:bg-zinc-800/50">
+                            <Link href={`/miniapp/market/${market.market_id}`}>
                                 <div className="flex items-center justify-between mb-3">
                                     <div className="flex items-center gap-2">
                                         {market.author_pfp_url ? (
@@ -343,7 +358,7 @@ function MarketsSection({
                                     {market.cast_text || "Will this cast go viral?"}
                                 </p>
 
-                                <div className="flex items-center justify-between text-xs">
+                                <div className="flex items-center justify-between text-xs mb-3">
                                     <span className={market.status === 'active' ? 'text-green-400 font-semibold' : 'text-zinc-500'}>
                                         ● {market.status?.toUpperCase() || 'ACTIVE'}
                                     </span>
@@ -351,22 +366,25 @@ function MarketsSection({
                                         <Countdown deadline={market.deadline} />
                                     )}
                                 </div>
-                                <div className="mt-3 flex gap-2">
-                                    <a
-                                        href={market.cast_hash || '#'}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="flex-1 py-2 text-center text-xs font-bold text-zinc-400 bg-zinc-900 border border-zinc-700 rounded-lg hover:text-white hover:border-zinc-500 transition-all"
-                                    >
-                                        View Cast ↗
-                                    </a>
-                                    <div className="flex-1 py-2 text-center text-xs font-bold text-black bg-white rounded-lg group-hover:scale-105 transition-transform">
-                                        Bet Now →
-                                    </div>
-                                </div>
+                            </Link>
+
+                            <div className="flex gap-2">
+                                <a
+                                    href={market.cast_hash || '#'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-1 py-2 text-center text-xs font-bold text-zinc-400 bg-zinc-900 border border-zinc-700 rounded-lg hover:text-white hover:border-zinc-500 transition-all cursor-pointer"
+                                >
+                                    View Cast ↗
+                                </a>
+                                <Link
+                                    href={`/miniapp/market/${market.market_id}`}
+                                    className="flex-1 py-2 text-center text-xs font-bold text-black bg-white rounded-lg group-hover:scale-105 transition-transform"
+                                >
+                                    Bet Now →
+                                </Link>
                             </div>
-                        </Link>
+                        </div>
                     ))}
                 </div>
             )}
