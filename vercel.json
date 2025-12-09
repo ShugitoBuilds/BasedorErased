@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/resolve?secret=${CRON_SECRET}",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/sync?secret=${CRON_SECRET}",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
