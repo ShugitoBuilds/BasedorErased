@@ -37,10 +37,11 @@ export async function getMarket(marketId: number): Promise<Market | null> {
       args: [BigInt(marketId)],
     }) as any;
 
-    // Check if market exists (id !== 0)
-    if (market.id === 0n) {
-      return null;
-    }
+    // Check if market exists (deadline > 0)
+    console.log('Raw market data for ID', marketId, ':', market);
+    // if (market.deadline === 0n) {
+    //   return null;
+    // }
 
     return {
       id: market.id,

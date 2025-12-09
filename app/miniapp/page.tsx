@@ -31,12 +31,27 @@ type MarketIndex = {
     created_at: string;
 };
 
-function formatTimeRemaining(deadlineIso: string): string {
-    const diff = new Date(deadlineIso).getTime() - Date.now();
-    if (diff <= 0) return 'Ended';
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    return `${hours}h ${mins}m left`;
+// Client-safe countdown timer
+function Countdown({ deadline }: { deadline: string }) {
+    const [timeLeft, setTimeLeft] = useState<string>('Loading...');
+
+    useEffect(() => {
+        function update() {
+            const diff = new Date(deadline).getTime() - Date.now();
+            if (diff <= 0) {
+                setTimeLeft('Ended');
+                return;
+            }
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            setTimeLeft(`${hours}h ${mins}m left`);
+        }
+        update();
+        const interval = setInterval(update, 60000); // Update every minute
+        return () => clearInterval(interval);
+    }, [deadline]);
+
+    return <span className="text-zinc-500 font-mono text-[10px]">{timeLeft}</span>;
 }
 
 type Tab = 'markets' | 'mybets' | 'faq' | 'guide';
@@ -119,6 +134,7 @@ function MarketHubContent() {
             setLoading(false);
         }
     }
+
     return (
         <div className="min-h-screen bg-black text-white font-sans">
             {/* Header with Tabs */}
@@ -126,7 +142,7 @@ function MarketHubContent() {
                 <div className="p-0 pb-4">
                     {/* Build Timestamp Banner */}
                     <div className="w-full bg-zinc-900 text-zinc-500 text-[10px] text-center py-1 font-mono border-b border-zinc-800 mb-4">
-                        Build: {new Date().toISOString().split('T')[1].split('.')[0]} UTC
+                        Build: v2.1.0-beta
                     </div>
 
                     <div className="mb-4 flex justify-center">
@@ -138,7 +154,7 @@ function MarketHubContent() {
                     </div>
 
                     {/* Tab Navigation */}
-                    <div className="flex gap-2 overflow-x-auto pb-2">
+                    <div className="flex gap-2 overflow-x-auto pb-2 px-4">
                         <TabButton
                             active={activeTab === 'markets'}
                             onClick={() => setActiveTab('markets')}
@@ -167,20 +183,20 @@ function MarketHubContent() {
                         >
                             Guide
                         </TabButton>
-                    </div >
-                </div >
-            </div >
+                    </div>
+                </div>
+            </div>
 
             {/* Create FAB */}
-            < Link
+            <Link
                 href="/miniapp/create"
                 className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-green-400 to-purple-500 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all z-50 font-bold text-2xl"
             >
                 +
-            </Link >
+            </Link>
 
             {/* Tab Content */}
-            < div className="p-4 pb-24" >
+            <div className="p-4 pb-24">
                 {activeTab === 'markets' && (
                     <MarketsSection
                         markets={markets}
@@ -193,17 +209,15 @@ function MarketHubContent() {
                     />
                 )}
 
-                {
-                    activeTab === 'mybets' && (
-                        <MyBetsSection address={address} isConnected={isConnected} />
-                    )
-                }
+                {activeTab === 'mybets' && (
+                    <MyBetsSection address={address} isConnected={isConnected} />
+                )}
 
                 {activeTab === 'faq' && <FAQSection />}
 
                 {activeTab === 'guide' && <GuideSection />}
-            </div >
-        </div >
+            </div>
+        </div>
     );
 }
 
@@ -334,9 +348,7 @@ function MarketsSection({
                                         ● {market.status?.toUpperCase() || 'ACTIVE'}
                                     </span>
                                     {market.deadline && (
-                                        <span className="text-zinc-500 font-mono text-[10px]">
-                                            {formatTimeRemaining(market.deadline)}
-                                        </span>
+                                        <Countdown deadline={market.deadline} />
                                     )}
                                 </div>
                                 <div className="mt-3 flex gap-2">

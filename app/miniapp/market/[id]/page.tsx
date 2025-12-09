@@ -41,7 +41,7 @@ function MiniAppContent({ params }: { params: { id: string } }) {
   /* DYNAMIC MARKET ID LOGIC (Route Param) */
   const parsedId = parseInt(params.id);
   const marketId = isNaN(parsedId) ? 0 : parsedId;
-  const isValidId = !isNaN(parsedId) && parsedId > 0;
+  const isValidId = !isNaN(parsedId) && parsedId >= 0;
 
   const [context, setContext] = useState<any>(null);
   const [market, setMarket] = useState<Market | null>(null);
