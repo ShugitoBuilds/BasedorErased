@@ -170,22 +170,10 @@ function MarketCard({
         } catch (e) { console.error(e); }
     };
 
-    // --- LIVE SCORE FETCH ---
-    const { data: liveData } = useQuery({
-        queryKey: ['likes', market.cast_hash],
-        queryFn: async () => {
-            if (!market.cast_hash || market.cast_hash.length < 5) return null;
-            // encodeURIComponent handles URLs correctly
-            const res = await fetch(`/api/live-score?hash=${encodeURIComponent(market.cast_hash)}`);
-            if (!res.ok) return { likes: 0 }; // Fail gracefully
-            return res.json() as Promise<{ likes: number }>;
-        },
-        enabled: market.status === 'active' && !!market.cast_hash,
-        refetchInterval: 30000
-    });
-
-    const displayLikes = liveData?.likes ?? market.likes_count ?? 0;
-    const isLive = !!liveData;
+    // --- LIVE SCORE FETCH DISABLED ---
+    // User requested "Dummy Proof" sync with Scraper.
+    // We now rely purely on the DB Value (market.likes_count) which the Scraper updates.
+    const displayLikes = market.likes_count ?? 0;
 
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 transition-all hover:border-purple-500/30 relative group">
@@ -235,7 +223,7 @@ function MarketCard({
                     <div className="flex justify-between text-[10px] text-zinc-400">
                         <span className="flex items-center gap-1">
                             {displayLikes} Likes
-                            {isLive && <span className="text-[8px] bg-red-500/20 text-red-500 px-1 rounded font-bold animate-pulse">LIVE</span>}
+                            {/* Replaced 'LIVE' with simple 'UPDATED' or nothing since it's cron-based now */}
                         </span>
                         <span>Goal: {market.threshold}</span>
                     </div>
@@ -528,10 +516,6 @@ function ClaimButton({ marketId, onSuccess }: { marketId: number, onSuccess: () 
     );
 }
 
-// My Bets Section, FAQSection, GuideSection ... (restored above)
-
-// RESTORED SECTIONS (Re-pasting for safety in file overwrite context if needed, but I included them in the main block above)
-
 function FAQSection() {
     const faqs = [
         {
@@ -722,15 +706,5 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
                 </div>
             ))}
         </div>
-    );
-}
-
-export default function MarketHub() {
-    return (
-        <WagmiProvider config={config}>
-            <QueryClientProvider client={queryClient}>
-                <MarketHubContent />
-            </QueryClientProvider>
-        </WagmiProvider>
     );
 }
