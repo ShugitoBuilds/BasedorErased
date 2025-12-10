@@ -133,13 +133,13 @@ function CreateMarketContent() {
                  <div className="flex flex-col gap-2 p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
                      <label className="text-sm font-bold text-zinc-400">Duration</label>
                      <div className="grid grid-cols-4 gap-2">
-                        {[0.083, 1, 12, 24].map((hrs) => (
+                        {[1.05, 6, 12, 24].map((hrs) => (
                             <button
                                 key={hrs}
                                 onClick={() => setDurationHours(hrs)}
                                 className={`py-2 px-1 rounded-lg text-xs font-bold border ${durationHours === hrs ? 'bg-purple-600 border-purple-400 text-white' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'}`}
                             >
-                                {hrs < 1 ? '5m ⚡' : `${hrs}h`}
+                                {hrs < 1.1 ? '1h 🕐' : `${hrs}h`}
                             </button>
                         ))}
                      </div>
