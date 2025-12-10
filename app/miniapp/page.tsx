@@ -86,7 +86,7 @@ function MarketCard({
     isAdmin: boolean
 }) {
     const { isConnected, address } = useAccount();
-    const [expanded, setExpanded] = useState(false);
+    // const [expanded, setExpanded] = useState(false); // REMOVED
     const [betAmount, setBetAmount] = useState('5');
     const [error, setError] = useState<string | null>(null);
     const { writeContractAsync, data: hash } = useWriteContract();
@@ -95,18 +95,17 @@ function MarketCard({
     const [odds, setOdds] = useState<{ moon: number, doom: number }>({ moon: 50, doom: 50 });
 
     useEffect(() => {
-        if (expanded) {
-            Promise.all([
-                getMoonOdds(market.market_id).catch(() => 50),
-                getDoomOdds(market.market_id).catch(() => 50)
-            ]).then(([moon, doom]) => setOdds({ moon, doom }));
-        }
-    }, [expanded, market.market_id]);
+        // ALWAYS fetch odds now
+        Promise.all([
+            getMoonOdds(market.market_id).catch(() => 50),
+            getDoomOdds(market.market_id).catch(() => 50)
+        ]).then(([moon, doom]) => setOdds({ moon, doom }));
+    }, [market.market_id]);
 
     useEffect(() => {
         if (isConfirmed) {
             refreshFinancials();
-            setExpanded(false);
+            // setExpanded(false); // No longer needed
         }
     }, [isConfirmed, refreshFinancials]);
 
@@ -187,71 +186,12 @@ function MarketCard({
     };
 
     // --- LIVE SCORE FETCH DISABLED ---
-    // User requested "Dummy Proof" sync with Scraper.
-    // We now rely purely on the DB Value (market.likes_count) which the Scraper updates.
     const displayLikes = market.likes_count ?? 0;
 
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 transition-all hover:border-purple-500/30 relative group">
-            {/* ADMIN UI DISABLED (Commented out for now)
-            {isAdmin && confirmState && (
-                <div className="absolute inset-0 z-50 bg-black/90 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-4 text-center animate-in fade-in duration-200">
-                    <p className="text-white font-bold text-sm mb-1">
-                        {confirmState.type === 'delete' ? 'Delete this market?' : `Resolve as ${confirmState.outcome === 1 ? 'BASED 🟢' : 'ERASED 🔻'}?`}
-                    </p>
-                    <p className="text-zinc-500 text-[10px] mb-3">This action is irreversible.</p>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (confirmState.type === 'delete') handleAdminCancel();
-                                else if (confirmState.outcome) executeResolve(confirmState.outcome);
-                            }}
-                            className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded"
-                        >
-                            Confirm
-                        </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); setConfirmState(null); }}
-                            className="bg-zinc-700 hover:bg-zinc-600 text-white text-xs font-bold px-3 py-1.5 rounded"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {isAdmin && !confirmState && (
-                <div className="absolute top-0 right-0 z-50 p-2 flex gap-1">
-                    {market.status === 'active' && (
-                        <>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setConfirmState({ type: 'resolve', outcome: 1 }); }}
-                                className="bg-green-600/90 hover:bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg border border-green-400 backdrop-blur-sm"
-                                title="Resolve as BASED (Moon)"
-                            >
-                                ✅ BASED
-                            </button>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setConfirmState({ type: 'resolve', outcome: 2 }); }}
-                                className="bg-red-600/90 hover:bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg border border-red-400 backdrop-blur-sm"
-                                title="Resolve as ERASED (Doom)"
-                            >
-                                🛑 ERASED
-                            </button>
-                        </>
-                    )}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); setConfirmState({ type: 'delete' }); }}
-                        className="bg-zinc-800 hover:bg-red-900 text-zinc-400 hover:text-red-200 text-[10px] font-bold px-2 py-1 rounded shadow-lg border border-zinc-700 transition-all ml-2"
-                        title="Delete/Hide Market"
-                    >
-                        🗑️
-                    </button>
-                </div>
-            )}
-            */}
-
+            {/* ADMIN UI DISABLED (Commented out for now) */}
+            
             {/* Header: User + View Cast */}
             <div className="flex items-center justify-between mb-3 mt-2">
                 <div className="flex items-center gap-2">
@@ -282,80 +222,83 @@ function MarketCard({
             </p>
 
             {/* Metadata Bar (Progress & Timer) - LIKES TRACKER DISABLED FOR MVP */}
-            <div className="flex items-center justify-between bg-zinc-950/50 rounded-lg p-2 mb-3 border border-zinc-800/50 text-[10px]">
+            <div className="flex items-center justify-between bg-zinc-950/50 rounded-lg p-2 mb-3 border border-zinc-800/50 text-[10px] shadow-inner">
                 <span className={`font-bold ${market.status === 'active' ? 'text-green-400' : 'text-zinc-500'}`}>
                     {market.status?.toUpperCase()}
                 </span>
-                <span className="text-zinc-500 font-medium text-center flex-1">
-                    Goal: <span className="text-zinc-300">{market.threshold} Likes</span>
+                <span className="font-bold text-zinc-300 text-center flex-1">
+                    GOAL: <span className="text-white text-xs">{market.threshold} Likes</span>
                 </span>
-                <Countdown deadline={market.deadline} />
+                <span className="font-mono text-[10px] text-zinc-400 bg-zinc-900/50 px-1.5 py-0.5 rounded border border-zinc-800">
+                   <Countdown deadline={market.deadline} />
+                </span>
             </div>
 
 
-            {/* Inline Betting / Expand Toggle */}
-            {expanded ? (
-                <div className="mt-3 bg-zinc-950 rounded-xl p-3 border border-zinc-800 animate-in fade-in slide-in-from-top-2">
-                    {/* Amount Input */}
-                    <div className="relative mb-3">
+            {/* NEW BETTING UI (Always Visible if Active) */}
+            {market.status === 'active' ? (
+                <div className="mt-4 space-y-3">
+                    
+                    {/* 1. Amount Input */}
+                    <div className="relative">
                         <span className="absolute left-3 top-2.5 text-zinc-500 text-xs font-bold">$</span>
                         <input
                             type="number"
                             value={betAmount}
                             onChange={(e) => setBetAmount(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg py-2 pl-6 pr-12 text-white font-bold text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg py-2 pl-6 pr-12 text-white font-bold text-sm focus:outline-none focus:ring-1 focus:ring-purple-500 placeholder-zinc-700"
+                            placeholder="Amount"
                         />
                         <div className="absolute right-1 top-1 flex items-center gap-1">
                             <span className="text-xs text-zinc-500 font-bold mr-1">USDC</span>
-                            <button onClick={() => setBetAmount(usdcBalance ? formatUSDC(usdcBalance) : '0')} className="bg-zinc-800 text-[10px] px-1.5 py-0.5 rounded text-zinc-300">MAX</button>
+                            <button onClick={() => setBetAmount(usdcBalance ? formatUSDC(usdcBalance) : '0')} className="bg-zinc-800 hover:bg-zinc-700 text-[10px] px-1.5 py-0.5 rounded text-zinc-300 transition-colors">MAX</button>
                         </div>
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2 mb-2">
+                    {/* 2. Stacked Bar Chart */}
+                    <div className="w-full h-6 bg-zinc-800 rounded-full overflow-hidden flex relative">
+                        <div 
+                            className="h-full bg-green-500 transition-all duration-500 flex items-center justify-start pl-2" 
+                            style={{ width: `${odds.moon}%` }}
+                        >
+                            <span className="text-[10px] font-black text-black/70 mix-blend-multiply">{Math.round(odds.moon)}%</span>
+                        </div>
+                        <div 
+                            className="h-full bg-red-500 transition-all duration-500 flex items-center justify-end pr-2" 
+                            style={{ width: `${odds.doom}%` }}
+                        >
+                            <span className="text-[10px] font-black text-black/70 mix-blend-multiply">{Math.round(odds.doom)}%</span>
+                        </div>
+                    </div>
+
+                    {/* 3. Betting Buttons */}
+                    <div className="grid grid-cols-2 gap-3">
                         <button
                             onClick={() => handleBet(true)}
-                            disabled={isConfirming}
-                            className="relative overflow-hidden p-2 rounded-lg bg-green-900/20 border border-green-500/30 hover:border-green-500/60 transition-all text-left group disabled:opacity-50"
+                            disabled={isConfirming || !isConnected}
+                            className="flex items-center justify-center py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white font-bold text-xs shadow-lg shadow-green-900/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <div className="text-[10px] font-bold text-green-500 mb-0.5">BASED 🟢</div>
-                            <div className="text-white font-black">{Math.round(odds.moon)}%</div>
+                            BASED 🟢
                         </button>
                         <button
                             onClick={() => handleBet(false)}
-                            disabled={isConfirming}
-                            className="relative overflow-hidden p-2 rounded-lg bg-red-900/20 border border-red-500/30 hover:border-red-500/60 transition-all text-left group disabled:opacity-50"
+                            disabled={isConfirming || !isConnected}
+                            className="flex items-center justify-center py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-lg shadow-red-900/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <div className="text-[10px] font-bold text-red-500 mb-0.5">ERASED 🔻</div>
-                            <div className="text-white font-black">{Math.round(odds.doom)}%</div>
+                            ERASED 🔻
                         </button>
                     </div>
 
                     {/* Status / Error */}
-                    {error && <div className="text-xs text-red-400 text-center mb-2">{error}</div>}
-                    {isConfirming && <div className="text-xs text-purple-400 text-center animate-pulse mb-2">Processing transaction...</div>}
+                    {error && <div className="text-xs text-red-400 text-center font-medium bg-red-950/30 p-1 rounded">{error}</div>}
+                    {isConfirming && <div className="text-xs text-purple-400 text-center animate-pulse font-medium">Confirming transaction...</div>}
+                    {!isConnected && <div className="text-xs text-zinc-500 text-center">Connect wallet to place bets</div>}
 
-                    <button
-                        onClick={() => setExpanded(false)}
-                        className="w-full py-1.5 text-xs text-zinc-500 hover:text-zinc-300 font-medium"
-                    >
-                        Cancel
-                    </button>
                 </div>
             ) : (
-                market.status === 'active' ? (
-                    <button
-                        onClick={() => setExpanded(true)}
-                        disabled={!isConnected}
-                        className="w-full py-2.5 bg-white text-black font-bold rounded-xl hover:scale-[1.02] active:scale-95 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {isConnected ? 'Bet Now' : 'Connect Wallet to Bet'}
-                    </button>
-                ) : (
-                    <div className="w-full py-2.5 bg-zinc-800 text-zinc-500 font-bold rounded-xl text-center text-sm cursor-not-allowed">
-                        Market Closed
-                    </div>
-                )
+                <div className="w-full py-3 bg-zinc-800/50 border border-zinc-800 text-zinc-500 font-bold rounded-xl text-center text-sm cursor-not-allowed mt-2">
+                    Market Closed
+                </div>
             )}
         </div>
     );
@@ -459,7 +402,7 @@ function MarketHubContent() {
             <div className="sticky top-0 bg-black/95 backdrop-blur-md z-20 border-b border-white/10">
                 <div className="p-0 pb-4">
                     <div className="w-full bg-zinc-900 border-b border-zinc-800 mb-4 flex justify-between items-center px-4 py-2">
-                        <span className="text-[10px] text-zinc-500 font-mono">v2.4.2 {isAdmin && <span className="text-red-500 font-bold ml-1">ADMIN</span>}</span>
+                        <span className="text-[10px] text-zinc-500 font-mono">v2.5.0 {isAdmin && <span className="text-red-500 font-bold ml-1">ADMIN</span>}</span>
                         
                         {/* Wallet / Balance */}
                         {!isConnected ? (
@@ -585,6 +528,10 @@ function GuideSection() {
         {
             q: "What is Based or Erased?",
             a: "This is a prediction market for Farcaster content. You bet on whether a specific Cast will achieve a certain number of Likes within 24 hours."
+        },
+         {
+            q: "⚠️ CRITICAL: What if the Cast is Deleted?",
+            a: "If the author deletes the Cast before the deadline, the market is INVALIDATED (Cancelled). ALL bets are refunded 100% (minus gas fees). No platform fees are taken. This ensures fairness and prevents manipulation."
         },
         {
             q: "How do I win?",

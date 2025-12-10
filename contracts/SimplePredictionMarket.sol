@@ -19,7 +19,7 @@ contract SimplePredictionMarket is Ownable, ReentrancyGuard {
     uint256 public nextMarketId = 1;
     uint256 public totalProtocolFees;
 
-    enum Outcome { UNRESOLVED, MOON, DOOM }
+    enum Outcome { UNRESOLVED, MOON, DOOM, CANCELLED }
 
     struct Market {
         uint256 id;
@@ -188,6 +188,26 @@ contract SimplePredictionMarket is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Cancel a market if cast is deleted (refunds everyone)
+     * @param marketId The market to cancel
+     */
+    function cancelMarket(uint256 marketId) external onlyOwner {
+        Market storage market = markets[marketId];
+        require(market.id != 0, "Market does not exist");
+        require(!market.resolved, "Market already resolved");
+        
+        // No deadline check - admin can cancel anytime if cast is deleted
+
+        market.resolved = true;
+        market.outcome = Outcome.CANCELLED;
+
+        uint256 totalPool = market.totalMoonBets + market.totalDoomBets;
+        // No protocol fees on cancellation
+
+        emit MarketResolved(marketId, Outcome.CANCELLED, totalPool);
+    }
+
+    /**
      * @notice Claim winnings from a resolved market
      * @param marketId The market to claim from
      */
@@ -199,28 +219,37 @@ contract SimplePredictionMarket is Ownable, ReentrancyGuard {
         UserBet storage bet = userBets[marketId][msg.sender];
         require(!bet.claimed, "Already claimed");
 
-        uint256 userWinningBet;
-        uint256 totalWinningBets;
+        uint256 winnings = 0;
 
-        if (market.outcome == Outcome.MOON) {
-            userWinningBet = bet.moonAmount;
-            totalWinningBets = market.totalMoonBets;
+        if (market.outcome == Outcome.CANCELLED) {
+            // REFUND
+            winnings = bet.moonAmount + bet.doomAmount;
         } else {
-            userWinningBet = bet.doomAmount;
-            totalWinningBets = market.totalDoomBets;
+            uint256 userWinningBet;
+            uint256 totalWinningBets;
+
+            if (market.outcome == Outcome.MOON) {
+                userWinningBet = bet.moonAmount;
+                totalWinningBets = market.totalMoonBets;
+            } else {
+                userWinningBet = bet.doomAmount;
+                totalWinningBets = market.totalDoomBets;
+            }
+
+            require(userWinningBet > 0, "No winning bet");
+
+            // Calculate winnings
+            uint256 totalPool = market.totalMoonBets + market.totalDoomBets;
+            uint256 protocolFee = (totalPool * PROTOCOL_FEE) / FEE_DENOMINATOR;
+            uint256 prizePool = totalPool - protocolFee;
+
+            // User's share of prize pool proportional to their winning bet
+            winnings = (prizePool * userWinningBet) / totalWinningBets;
         }
 
-        require(userWinningBet > 0, "No winning bet");
-
+        require(winnings > 0, "Nothing to claim");
+        
         bet.claimed = true;
-
-        // Calculate winnings
-        uint256 totalPool = market.totalMoonBets + market.totalDoomBets;
-        uint256 protocolFee = (totalPool * PROTOCOL_FEE) / FEE_DENOMINATOR;
-        uint256 prizePool = totalPool - protocolFee;
-
-        // User's share of prize pool proportional to their winning bet
-        uint256 winnings = (prizePool * userWinningBet) / totalWinningBets;
 
         require(
             USDC.transfer(msg.sender, winnings),

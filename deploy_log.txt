@@ -1,0 +1,41 @@
+Deploying contracts with account: 0x05EEBF02305BF34C446C298105174e099C716bb9
+Network: baseSepolia
+Account balance: 210534953287446
+
+Using USDC at: 0x036CbD53842c5426634e7929541eC2318f3dCF7e
+
+Deploying SimplePredictionMarket...
+
+✅ SimplePredictionMarket deployed to: 0x2954BA2Dc0598bB529085d43D4414AC915B090aC
+
+📝 Deployment Info:
+{
+  "network": "baseSepolia",
+  "contractAddress": "0x2954BA2Dc0598bB529085d43D4414AC915B090aC",
+  "usdcAddress": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  "deployer": "0x05EEBF02305BF34C446C298105174e099C716bb9",
+  "timestamp": "2025-12-10T20:00:24.223Z"
+}
+
+⏳ Waiting 30 seconds before verification...
+
+🔍 Verifying contract on Basescan...
+❌ Verification failed: You are trying to verify a contract in 'baseSepolia', but no API token was found for this network. Please provide one in your hardhat config. For example:
+
+{
+  ...
+  etherscan: {
+    apiKey: {
+      baseSepolia: 'your API key'
+    }
+  }
+}
+
+See https://etherscan.io/apis
+
+🎉 Deployment complete!
+
+Next steps:
+1. Update .env with CONTRACT_ADDRESS=0x2954BA2Dc0598bB529085d43D4414AC915B090aC
+2. Test creating a market
+3. Update Frame UI to interact with contract
