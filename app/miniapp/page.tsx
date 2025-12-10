@@ -154,8 +154,9 @@ function MarketCard({
         }
     };
 
+    const [confirmState, setConfirmState] = useState<{ type: 'resolve' | 'delete', outcome?: number } | null>(null);
+
     const handleAdminCancel = async () => {
-        if (!confirm('ADMIN: Are you sure you want to cancel/hide this market?')) return;
         try {
             const res = await fetch('/api/admin/cancel', {
                 method: 'POST',
@@ -163,19 +164,14 @@ function MarketCard({
                 body: JSON.stringify({ marketId: market.market_id, address })
             });
             if (res.ok) {
-                alert('Market Cancelled');
                 window.location.reload();
             } else {
-                alert('Failed to cancel');
+                console.error('Failed to cancel');
             }
         } catch (e) { console.error(e); }
     };
 
-    const handleResolve = async (outcome: number) => {
-        if (!isAdmin) return;
-        const outcomeKey = outcome === 1 ? "BASED 🟢" : "ERASED 🔻";
-        if (!confirm(`ADMIN ACTION:\n\nAre you sure you want to resolve Market #${market.market_id} as ${outcomeKey}?\n\nThis will trigger payouts and is IRREVERSIBLE.`)) return;
-
+    const executeResolve = async (outcome: number) => {
         try {
             await writeContractAsync({
                 address: CONTRACT_ADDRESS,
@@ -183,9 +179,10 @@ function MarketCard({
                 functionName: 'resolveMarket',
                 args: [BigInt(market.market_id), outcome],
             });
+            setConfirmState(null);
         } catch (err: any) {
             console.error(err);
-            alert(`Resolution failed: ${err.message || 'Unknown error'}`);
+            setError(`Resolution failed: ${err.message || 'Unknown error'}`);
         }
     };
 
@@ -196,19 +193,47 @@ function MarketCard({
 
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 transition-all hover:border-purple-500/30 relative group">
-            {isAdmin && (
+            {/* ADMIN CONFIRMATION OVERLAY */}
+            {isAdmin && confirmState && (
+                <div className="absolute inset-0 z-50 bg-black/90 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-4 text-center animate-in fade-in duration-200">
+                    <p className="text-white font-bold text-sm mb-1">
+                        {confirmState.type === 'delete' ? 'Delete this market?' : `Resolve as ${confirmState.outcome === 1 ? 'BASED 🟢' : 'ERASED 🔻'}?`}
+                    </p>
+                    <p className="text-zinc-500 text-[10px] mb-3">This action is irreversible.</p>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirmState.type === 'delete') handleAdminCancel();
+                                else if (confirmState.outcome) executeResolve(confirmState.outcome);
+                            }}
+                            className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded"
+                        >
+                            Confirm
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setConfirmState(null); }}
+                            className="bg-zinc-700 hover:bg-zinc-600 text-white text-xs font-bold px-3 py-1.5 rounded"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {isAdmin && !confirmState && (
                 <div className="absolute top-0 right-0 z-50 p-2 flex gap-1">
                     {market.status === 'active' && (
                         <>
                             <button
-                                onClick={(e) => { e.stopPropagation(); handleResolve(1); }}
+                                onClick={(e) => { e.stopPropagation(); setConfirmState({ type: 'resolve', outcome: 1 }); }}
                                 className="bg-green-600/90 hover:bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg border border-green-400 backdrop-blur-sm"
                                 title="Resolve as BASED (Moon)"
                             >
                                 ✅ BASED
                             </button>
                             <button
-                                onClick={(e) => { e.stopPropagation(); handleResolve(2); }}
+                                onClick={(e) => { e.stopPropagation(); setConfirmState({ type: 'resolve', outcome: 2 }); }}
                                 className="bg-red-600/90 hover:bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg border border-red-400 backdrop-blur-sm"
                                 title="Resolve as ERASED (Doom)"
                             >
@@ -217,7 +242,7 @@ function MarketCard({
                         </>
                     )}
                     <button
-                        onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleAdminCancel(); }}
+                        onClick={(e) => { e.stopPropagation(); setConfirmState({ type: 'delete' }); }}
                         className="bg-zinc-800 hover:bg-red-900 text-zinc-400 hover:text-red-200 text-[10px] font-bold px-2 py-1 rounded shadow-lg border border-zinc-700 transition-all ml-2"
                         title="Delete/Hide Market"
                     >
