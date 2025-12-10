@@ -673,13 +673,13 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
                         {item.bet.moonAmount > 0n && (
                             <div className="bg-green-900/10 border border-green-500/20 rounded-lg p-2 flex justify-between items-center">
                                 <span className="text-xs font-bold text-green-500">BASED</span>
-                                <span className="font-mono text-sm font-bold">{formatUSDC(item.bet.moonAmount)} $</span>
+                                <span className="font-mono text-sm font-bold">{formatUSDC(item.bet.moonAmount)}</span>
                             </div>
                         )}
                         {item.bet.doomAmount > 0n && (
                             <div className="bg-red-900/10 border border-red-500/20 rounded-lg p-2 flex justify-between items-center">
                                 <span className="text-xs font-bold text-red-500">ERASED</span>
-                                <span className="font-mono text-sm font-bold">{formatUSDC(item.bet.doomAmount)} $</span>
+                                <span className="font-mono text-sm font-bold">{formatUSDC(item.bet.doomAmount)}</span>
                             </div>
                         )}
                     </div>
