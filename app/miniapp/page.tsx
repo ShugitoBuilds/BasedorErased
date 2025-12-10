@@ -170,6 +170,24 @@ function MarketCard({
         } catch (e) { console.error(e); }
     };
 
+    const handleResolve = async (outcome: number) => {
+        if (!isAdmin) return;
+        const outcomeKey = outcome === 1 ? "BASED 🟢" : "ERASED 🔻";
+        if (!confirm(`ADMIN ACTION:\n\nAre you sure you want to resolve Market #${market.market_id} as ${outcomeKey}?\n\nThis will trigger payouts and is IRREVERSIBLE.`)) return;
+
+        try {
+            await writeContractAsync({
+                address: CONTRACT_ADDRESS,
+                abi: contractABI,
+                functionName: 'resolveMarket',
+                args: [BigInt(market.market_id), outcome],
+            });
+        } catch (err: any) {
+            console.error(err);
+            alert(`Resolution failed: ${err.message || 'Unknown error'}`);
+        }
+    };
+
     // --- LIVE SCORE FETCH DISABLED ---
     // User requested "Dummy Proof" sync with Scraper.
     // We now rely purely on the DB Value (market.likes_count) which the Scraper updates.
