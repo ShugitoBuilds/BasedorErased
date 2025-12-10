@@ -23,6 +23,7 @@ function CreateMarketContent() {
     const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
     const [threshold, setThreshold] = useState(100);
+    const [durationHours, setDurationHours] = useState(24);
     const [castUrl, setCastUrl] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncSuccess, setSyncSuccess] = useState(false);
@@ -63,8 +64,8 @@ function CreateMarketContent() {
     async function handleCreate() {
         if (!castUrl) return alert('Enter a Cast URL');
 
-        // 24h from now
-        const deadline = Math.floor(Date.now() / 1000) + (24 * 60 * 60);
+        // Dynamic Duration
+        const deadline = Math.floor(Date.now() / 1000) + Math.floor(durationHours * 3600);
 
         writeContract({
             address: CONTRACT_ADDRESS,
@@ -124,8 +125,24 @@ function CreateMarketContent() {
                         className="w-full accent-green-500 h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
                     />
                     <p className="text-xs text-zinc-500 text-center">
-                        Will the cast hit {threshold} likes in 24h?
+                        Will the cast hit {threshold} likes in {durationHours < 1 ? `< 5 mins` : `${durationHours}h`}?
                     </p>
+                </div>
+
+                {/* Duration Selector */}
+                 <div className="flex flex-col gap-2 p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
+                     <label className="text-sm font-bold text-zinc-400">Duration</label>
+                     <div className="grid grid-cols-4 gap-2">
+                        {[0.083, 1, 12, 24].map((hrs) => (
+                            <button
+                                key={hrs}
+                                onClick={() => setDurationHours(hrs)}
+                                className={`py-2 px-1 rounded-lg text-xs font-bold border ${durationHours === hrs ? 'bg-purple-600 border-purple-400 text-white' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'}`}
+                            >
+                                {hrs < 1 ? '5m ⚡' : `${hrs}h`}
+                            </button>
+                        ))}
+                     </div>
                 </div>
 
                 {/* Action Button */}
