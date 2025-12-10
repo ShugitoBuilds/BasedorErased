@@ -47,19 +47,16 @@ export async function GET(req: NextRequest) {
 
         // 4. Separate Short vs Valid Hashes
         // Short hashes (e.g. 0x847372fe) need "Healing" via URL fetch.
-        // Valid hashes (40+ chars) can be batch processed.
+        // Valid hashes (40+ chars) are now handled by the SCRAPER CRON.
         const shortHashMarkets = activeMarkets.filter(m => m.cast_hash.length < 20);
-        const validHashMarkets = activeMarkets.filter(m => m.cast_hash.length >= 20);
 
         // --- A. Heal Short Hashes (Singular Fetch) ---
+        // We MUST fix short hashes so the Scraper can find the correct URL.
         if (shortHashMarkets.length > 0) {
             console.log(`[Cron:Sync] Healing ${shortHashMarkets.length} short-hash markets...`);
 
             for (const market of shortHashMarkets) {
                 try {
-                    // Javascript timestamp for cache busting + internal logging
-                    const startFetch = Date.now();
-
                     // Reconstruct URL: https://warpcast.com/username/hash
                     const castUrl = `https://warpcast.com/${market.author_username}/${market.cast_hash}`;
 
@@ -77,13 +74,12 @@ export async function GET(req: NextRequest) {
                     const cast = data.cast;
 
                     if (cast) {
-                        const count = cast.reactions.likes_count ?? cast.reactions.likes?.length ?? 0;
-                        console.log(`[Cron:Sync] Healed Market ${market.market_id}: ${count} likes. Full Hash: ${cast.hash}`);
+                        console.log(`[Cron:Sync] Healed Market ${market.market_id}. Full Hash: ${cast.hash}`);
 
                         updates.push({
                             market_id: market.market_id,
-                            likes_count: count,
-                            cast_hash: cast.hash // UPDATE TO FULL HASH TO FIX FUTURE SYNCS!
+                            // likes_count: count, // DISABLED: Handled by Scraper
+                            cast_hash: cast.hash // UPDATE TO FULL HASH TO FIX SCRAPER!
                         });
                     }
                 } catch (err) {
@@ -93,41 +89,8 @@ export async function GET(req: NextRequest) {
         }
 
         // --- B. Batch Process Valid Hashes ---
-        if (validHashMarkets.length > 0) {
-            const BATCH_SIZE = 50;
-            console.log(`[Cron:Sync] Batch syncing ${validHashMarkets.length} valid markets...`);
-
-            for (let i = 0; i < validHashMarkets.length; i += BATCH_SIZE) {
-                const batch = validHashMarkets.slice(i, i + BATCH_SIZE);
-                const hashes = batch.map(m => m.cast_hash).join(',');
-
-                const neynarRes = await fetch(`https://api.neynar.com/v2/farcaster/casts?casts=${hashes}`, {
-                    headers: { 'api_key': NEYNAR_API_KEY }
-                });
-
-                if (!neynarRes.ok) {
-                    console.error(`[Cron:Sync] Neynar Batch Error (${i}):`, await neynarRes.text());
-                    continue;
-                }
-
-                const neynarData = await neynarRes.json();
-                const casts = neynarData.result?.casts || [];
-
-                for (const cast of casts) {
-                    const count = cast.reactions.likes_count ?? cast.reactions.likes?.length ?? 0;
-
-                    // Match back to market_id
-                    const match = validHashMarkets.find(m => m.cast_hash === cast.hash);
-                    if (match) {
-                        updates.push({
-                            market_id: match.market_id,
-                            likes_count: count
-                            // No need to update cast_hash
-                        });
-                    }
-                }
-            }
-        }
+        // DISABLED entirely to prevent conflict with Puppeteer Scraper.
+        // The Scraper is now the Sole Source of Truth for Score Updates.
 
         // 5. Bulk Update Supabase
         if (updates.length > 0) {
@@ -140,13 +103,14 @@ export async function GET(req: NextRequest) {
         }
 
         const duration = Date.now() - startTime;
-        console.log(`[Cron:Sync] Success. Synced ${updates.length} markets (Healed: ${shortHashMarkets.length}) in ${duration}ms.`);
+        console.log(`[Cron:Sync] Success. Synced/Healed ${updates.length} markets in ${duration}ms.`);
 
         return NextResponse.json({
             success: true,
             synced: updates.length,
             healed: shortHashMarkets.length,
             total_active: activeMarkets.length,
+            mode: 'healing_only', // Flag to show we aren't syncing scores
             duration_ms: duration
         });
 
