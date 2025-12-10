@@ -4,10 +4,11 @@ import { createClient } from '@supabase/supabase-js';
 import { createPublicClient, http, parseAbiItem, decodeEventLog } from 'viem';
 import { baseSepolia } from 'viem/chains';
 
-// Init Supabase
+// Init Supabase with Service Role Key to bypass RLS for inserts
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    SUPABASE_SERVICE_KEY
 );
 
 // Init Viem Client
@@ -68,12 +69,6 @@ export async function POST(req: NextRequest) {
 
         const { marketId, castUrl, deadline, threshold } = marketData;
 
-        // Insert into Supabase
-        // We Map: marketId -> market_id, castUrl -> cast_url, deadline -> deadline
-        // We also need to fetch basic cast metadata (image/author) from Neynar to make it look good Immediately?
-        // For V1 Speed: Let's just insert the raw data. The main view might handle the "missing metadata" gracefully or we can do a quick client-side fetch.
-        // Actually best practice: Fetch Neynar here so the DB is complete. 
-
         // 1. Fetch Cast Info from Neynar
         let authorUsername = 'unknown';
         let authorPfp = '';
@@ -93,8 +88,6 @@ export async function POST(req: NextRequest) {
                     const data = await neynarRes.json();
                     const cast = data.cast;
                     if (cast) {
-                        authorUsername = cast.author.username;
-                        authorPfp = cast.author.pfp_url;
                         authorUsername = cast.author.username;
                         authorPfp = cast.author.pfp_url;
                         castText = cast.text;
@@ -127,6 +120,10 @@ export async function POST(req: NextRequest) {
 
         if (error) {
             console.error('[Sync] DB Error:', error);
+            // Check for RLS policy violation
+            if (error.code === '42501') {
+                return NextResponse.json({ error: 'Permission denied (RLS). Check Service Key.' }, { status: 500 });
+            }
             return NextResponse.json({ error: 'Database insertion failed' }, { status: 500 });
         }
 

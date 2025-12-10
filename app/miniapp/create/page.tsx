@@ -26,10 +26,13 @@ function CreateMarketContent() {
     const [castUrl, setCastUrl] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncSuccess, setSyncSuccess] = useState(false);
+    const [lastSyncedHash, setLastSyncedHash] = useState<string | null>(null);
 
     useEffect(() => {
-        if (isSuccess && hash && !isSyncing && !syncSuccess) {
+        // Prevent infinite loop: Only sync if success, hash exists, we haven't synced this hash yet
+        if (isSuccess && hash && !isSyncing && !syncSuccess && hash !== lastSyncedHash) {
             setIsSyncing(true);
+            setLastSyncedHash(hash); // Mark as attempted
             console.log('Triggering Sync for:', hash);
 
             fetch('/api/sync/market', {
@@ -44,7 +47,7 @@ function CreateMarketContent() {
                         setSyncSuccess(true);
                     } else {
                         console.error('Sync Failed:', data);
-                        alert('Market created on-chain but failed to sync to DB. Please refresh in a moment.');
+                        // Do NOT alert here to avoid spam loops
                     }
                 })
                 .catch(err => {
@@ -54,7 +57,7 @@ function CreateMarketContent() {
                     setIsSyncing(false);
                 });
         }
-    }, [isSuccess, hash, isSyncing, syncSuccess]);
+    }, [isSuccess, hash, isSyncing, syncSuccess, lastSyncedHash]);
 
 
     async function handleCreate() {
