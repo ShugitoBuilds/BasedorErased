@@ -1,7 +1,6 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = 'edge'; // Optional: for speed, but Node is fine too. Let's stick to default/Node if unsure about Edge env vars support. Default is safest. 
-// Actually, edge is often better for simple proxies, but creates issues with some packages. Let's use Node.
 export const dynamic = 'force-dynamic';
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
@@ -14,13 +13,18 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const hash = searchParams.get('hash');
 
-    if (!hash || !hash.startsWith('0x')) {
-        return NextResponse.json({ error: 'Invalid Hash' }, { status: 400 });
+    if (!hash) {
+        return NextResponse.json({ error: 'Invalid Identifier' }, { status: 400 });
     }
+
+    // New logic: Support URL or Hash
+    const isUrl = hash.startsWith('http');
+    const type = isUrl ? 'url' : 'hash';
+    const identifier = encodeURIComponent(hash);
 
     try {
         const neynarRes = await fetch(
-            `https://api.neynar.com/v2/farcaster/cast?identifier=${hash}&type=hash`,
+            `https://api.neynar.com/v2/farcaster/cast?identifier=${identifier}&type=${type}`,
             {
                 headers: {
                     'api_key': NEYNAR_API_KEY,

@@ -1,5 +1,6 @@
 "use client";
 
+// FORCE DYNAMIC
 export const dynamic = 'force-dynamic';
 
 import React, { useEffect, useState } from 'react';
@@ -27,6 +28,13 @@ const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://basedorerased.vercel.app';
 
+// ADMIN WALLETS (Lowercase)
+const ADMIN_WALLETS = [
+    '0xAD355883F2044F7E666270685957d190135359ad',
+    '0x26C1122D086A0c3c626B5706922F24599f692A20',
+    '0xd42Fe6aE017daaa721f47cE25a3B66675C2F635d' // User's wallet from logs
+].map(s => s.toLowerCase());
+
 type MarketIndex = {
     market_id: number;
     cast_hash: string;
@@ -39,6 +47,8 @@ type MarketIndex = {
     likes_count?: number;
     threshold?: string;
 };
+
+// ... (Countdown & Other Components remain valid, just updating MarketCard & Main logic) ...
 
 function Countdown({ deadline }: { deadline: string }) {
     const [timeLeft, setTimeLeft] = useState<string>('Loading...');
@@ -55,25 +65,26 @@ function Countdown({ deadline }: { deadline: string }) {
             setTimeLeft(`${hours}h ${mins}m left`);
         }
         update();
-        const interval = setInterval(update, 60000); // Update every minute
+        const interval = setInterval(update, 60000); // 1 min
         return () => clearInterval(interval);
     }, [deadline]);
 
     return <span className="text-zinc-500 font-mono text-[10px]">{timeLeft}</span>;
 }
 
-// --- components ---
-
+// MARKET CARD
 function MarketCard({
     market,
     usdcBalance,
     allowance,
-    refreshFinancials
+    refreshFinancials,
+    isAdmin
 }: {
     market: MarketIndex,
     usdcBalance?: bigint,
     allowance?: bigint,
-    refreshFinancials: () => void
+    refreshFinancials: () => void,
+    isAdmin: boolean
 }) {
     const { isConnected, address } = useAccount();
     const [expanded, setExpanded] = useState(false);
@@ -144,24 +155,51 @@ function MarketCard({
         }
     };
 
+    const handleAdminCancel = async () => {
+        if (!confirm('ADMIN: Are you sure you want to cancel/hide this market?')) return;
+        try {
+            const res = await fetch('/api/admin/cancel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ marketId: market.market_id, address })
+            });
+            if (res.ok) {
+                alert('Market Cancelled');
+                window.location.reload();
+            } else {
+                alert('Failed to cancel');
+            }
+        } catch (e) { console.error(e); }
+    };
+
     // --- LIVE SCORE FETCH ---
     const { data: liveData } = useQuery({
         queryKey: ['likes', market.cast_hash],
         queryFn: async () => {
-            if (!market.cast_hash || market.cast_hash.length < 10) return null;
-            const res = await fetch(`/api/live-score?hash=${market.cast_hash}`);
-            if (!res.ok) throw new Error('Failed to fetch');
+            if (!market.cast_hash || market.cast_hash.length < 5) return null;
+            // encodeURIComponent handles URLs correctly
+            const res = await fetch(`/api/live-score?hash=${encodeURIComponent(market.cast_hash)}`);
+            if (!res.ok) return { likes: 0 }; // Fail gracefully
             return res.json() as Promise<{ likes: number }>;
         },
         enabled: market.status === 'active' && !!market.cast_hash,
-        refetchInterval: 30000 // Poll every 30s (Conservative)
+        refetchInterval: 30000
     });
 
     const displayLikes = liveData?.likes ?? market.likes_count ?? 0;
     const isLive = !!liveData;
 
     return (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 transition-all hover:border-purple-500/30">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 transition-all hover:border-purple-500/30 relative">
+            {isAdmin && (
+                <button
+                    onClick={(e) => { e.stopPropagation(); handleAdminCancel(); }}
+                    className="absolute top-2 right-2 bg-red-900/50 text-red-500 text-[10px] px-2 py-1 rounded hover:bg-red-900 border border-red-500/30 z-10"
+                >
+                    ADMIN CANCEL
+                </button>
+            )}
+
             {/* Header: User + View Cast */}
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -177,7 +215,7 @@ function MarketCard({
                 </div>
 
                 <a
-                    href={market.cast_hash || '#'}
+                    href={market.cast_hash?.startsWith('http') ? market.cast_hash : `https://warpcast.com/${market.author_username}/${market.cast_hash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-[10px] font-medium text-zinc-300 transition-colors"
@@ -284,6 +322,8 @@ function MarketCard({
     );
 }
 
+// ... (Rest of file same, just updating Main to pass isAdmin) ...
+
 type Tab = 'markets' | 'mybets' | 'faq' | 'guide';
 type MarketFilter = 'all' | 'active' | 'resolved';
 
@@ -295,6 +335,8 @@ function MarketHubContent() {
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
+
+    const isAdmin = !!address && ADMIN_WALLETS.includes(address.toLowerCase());
 
     const { data: allowance, refetch: refetchAllowance } = useReadContract({
         address: USDC_ADDRESS,
@@ -340,13 +382,18 @@ function MarketHubContent() {
             let query = supabase
                 .from('market_index')
                 .select('*')
-                .neq('author_username', 'shugito')
+                // .neq('author_username', 'shugito') // Removed for admin to see all
                 .order('created_at', { ascending: false });
 
             if (search) query = query.ilike('author_username', `%${search}%`);
 
             if (filter === 'active') query = query.eq('status', 'active');
             else if (filter === 'resolved') query = query.neq('status', 'active');
+
+            // If not admin and not filtering, maybe hide cancelled? 
+            if (!isAdmin) {
+                query = query.neq('status', 'admin_cancelled');
+            }
 
             const { data, error } = await query;
             if (error) {
@@ -367,8 +414,9 @@ function MarketHubContent() {
         <div className="min-h-screen bg-black text-white font-sans">
             <div className="sticky top-0 bg-black/95 backdrop-blur-md z-20 border-b border-white/10">
                 <div className="p-0 pb-4">
-                    <div className="w-full bg-zinc-900 text-zinc-500 text-[10px] text-center py-1 font-mono border-b border-zinc-800 mb-4">
-                        Build: v2.3.0 - Live Data + Resolution
+                    <div className="w-full bg-zinc-900 text-zinc-500 text-[10px] text-center py-1 font-mono border-b border-zinc-800 mb-4 flex justify-between px-4">
+                        <span>Build: v2.4.0 - Admin Mode</span>
+                        {isAdmin && <span className="text-red-500 font-bold">ADMIN MODE ACTIVE</span>}
                     </div>
                     <div className="mb-4 flex justify-center">
                         <img src="/based-or-erased-banner.png" alt="Based or Erased" className="h-20 object-contain" />
@@ -420,6 +468,7 @@ function MarketHubContent() {
                                         usdcBalance={usdcBalance}
                                         allowance={allowance}
                                         refreshFinancials={refreshFinancials}
+                                        isAdmin={isAdmin}
                                     />
                                 ))}
                                 {markets.length === 0 && <div className="text-center text-zinc-500 py-10">No markets found.</div>}
@@ -436,7 +485,7 @@ function MarketHubContent() {
     );
 }
 
-// Sub-components
+// ... tab components ... 
 function TabButton({ active, onClick, icon, children }: { active: boolean, onClick: () => void, icon: string, children: React.ReactNode }) {
     return (
         <button onClick={onClick} className={`px-4 py-2 rounded-xl font-semibold text-sm whitespace-nowrap flex items-center gap-2 transition-all ${active ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-400'}`}>
