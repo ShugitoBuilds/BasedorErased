@@ -514,7 +514,7 @@ function ClaimButton({ marketId, onSuccess }: { marketId: number, onSuccess: () 
     );
 }
 
-function FAQSection() {
+function GuideSection() {
     const faqs = [
         {
             q: "What is Based or Erased?",
@@ -537,55 +537,65 @@ function FAQSection() {
             a: "Go to the 'My Bets' tab. If you won, you'll see a 'Claim Winnings' button next to completed markets."
         }
     ];
+
     return (
-        <div className="space-y-3">
-            {faqs.map((f, i) => (
-                <details key={i} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 open:bg-zinc-800 transition-colors">
-                    <summary className="font-bold text-sm cursor-pointer list-none flex justify-between items-center">
-                        {f.q} <span className="text-zinc-500 transform transition-transform open:rotate-180">▼</span>
-                    </summary>
-                    <p className="mt-3 text-zinc-400 text-sm leading-relaxed">{f.a}</p>
-                </details>
-            ))}
-        </div>
-    );
-}
+        <div className="space-y-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-6">
+                <h3 className="text-xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">How to Play</h3>
 
-function GuideSection() {
-    return (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-6">
-            <h3 className="text-xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">How to Play</h3>
+                <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-xl flex items-start gap-3">
+                    <div className="text-xl">ℹ️</div>
+                    <div>
+                        <h4 className="font-bold text-blue-400 text-sm">USDC Only</h4>
+                        <p className="text-xs text-blue-200 mt-1">
+                            This platform exclusively uses <strong>USDC on Base</strong> for all bets and payouts. Please ensure your wallet has USDC to participate.
+                        </p>
+                    </div>
+                </div>
 
-            <div className="flex gap-4 items-start">
-                <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-lg font-bold shrink-0">1</div>
-                <div>
-                    <h4 className="font-bold text-white mb-1">Find a Cast</h4>
-                    <p className="text-sm text-zinc-400">Browse the 'Markets' tab to see active predictions. Look for casts you think are viral hits or flops.</p>
+                <div className="flex gap-4 items-start">
+                    <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-lg font-bold shrink-0">1</div>
+                    <div>
+                        <h4 className="font-bold text-white mb-1">Find a Cast</h4>
+                        <p className="text-sm text-zinc-400">Browse the 'Markets' tab to see active predictions. Look for casts you think are viral hits or flops.</p>
+                    </div>
+                </div>
+
+                <div className="flex gap-4 items-start">
+                    <div className="w-8 h-8 rounded-full bg-green-900/30 text-green-500 flex items-center justify-center text-lg font-bold shrink-0">2</div>
+                    <div>
+                        <h4 className="font-bold text-white mb-1">Bet BASED (Green)</h4>
+                        <p className="text-sm text-zinc-400">Bet this if you think the cast WILL hit the like target before the deadline.</p>
+                    </div>
+                </div>
+
+                <div className="flex gap-4 items-start">
+                    <div className="w-8 h-8 rounded-full bg-red-900/30 text-red-500 flex items-center justify-center text-lg font-bold shrink-0">3</div>
+                    <div>
+                        <h4 className="font-bold text-white mb-1">Bet ERASED (Red)</h4>
+                        <p className="text-sm text-zinc-400">Bet this if you think the cast will FAIL to hit the target.</p>
+                    </div>
+                </div>
+
+                <div className="flex gap-4 items-start">
+                    <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-lg font-bold shrink-0">4</div>
+                    <div>
+                        <h4 className="font-bold text-white mb-1">Claim Winnings</h4>
+                        <p className="text-sm text-zinc-400">If you chose correctly, claim your share of the loser's pot from the 'My Bets' tab!</p>
+                    </div>
                 </div>
             </div>
 
-            <div className="flex gap-4 items-start">
-                <div className="w-8 h-8 rounded-full bg-green-900/30 text-green-500 flex items-center justify-center text-lg font-bold shrink-0">2</div>
-                <div>
-                    <h4 className="font-bold text-green-400 mb-1">Bet BASED (Bullish)</h4>
-                    <p className="text-sm text-zinc-400">Bet this if you think the cast <b>WILL</b> reach the Like Goal before the deadline.</p>
-                </div>
-            </div>
-
-            <div className="flex gap-4 items-start">
-                <div className="w-8 h-8 rounded-full bg-red-900/30 text-red-500 flex items-center justify-center text-lg font-bold shrink-0">3</div>
-                <div>
-                    <h4 className="font-bold text-red-500 mb-1">Bet ERASED (Bearish)</h4>
-                    <p className="text-sm text-zinc-400">Bet this if you think the cast will <b>FAIL</b> to reach the goal.</p>
-                </div>
-            </div>
-
-            <div className="flex gap-4 items-start">
-                <div className="w-8 h-8 rounded-full bg-yellow-900/30 text-yellow-500 flex items-center justify-center text-lg font-bold shrink-0">4</div>
-                <div>
-                    <h4 className="font-bold text-yellow-500 mb-1">Win & Claim</h4>
-                    <p className="text-sm text-zinc-400">When the timer hits zero, the market resolves automatically. If you chose correctly, check 'My Bets' to claim your share of the pot!</p>
-                </div>
+            <div className="space-y-3">
+                <h3 className="text-lg font-bold px-2">Frequently Asked Questions</h3>
+                {faqs.map((f, i) => (
+                    <details key={i} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 open:bg-zinc-800 transition-colors">
+                        <summary className="font-bold text-sm cursor-pointer list-none flex justify-between items-center bg-transparent appearance-none">
+                            {f.q} <span className="text-zinc-500 transform transition-transform open:rotate-180">▼</span>
+                        </summary>
+                        <p className="mt-3 text-zinc-400 text-sm leading-relaxed">{f.a}</p>
+                    </details>
+                ))}
             </div>
         </div>
     );
