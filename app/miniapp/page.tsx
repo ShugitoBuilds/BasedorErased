@@ -366,7 +366,43 @@ function MarketHubContent() {
         }
     }, [activeTab, search, filter]);
 
-    // ... (fetchMarkets)
+    async function fetchMarkets() {
+        if (!supabase) { setFetchError("Supabase not configured"); setLoading(false); return; }
+        setLoading(true);
+
+        try {
+            let query = supabase
+                .from('market_index')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (search) query = query.ilike('author_username', `%${search}%`);
+
+            if (filter === 'active') query = query.eq('status', 'active');
+            else if (filter === 'resolved') query = query.neq('status', 'active');
+
+            // HIDE Cancelled markets unless SEARCHING or explicit toggle (not implemented). 
+            // Just hide them from default view.
+            if (filter !== 'all') {
+                // already handled
+            } else {
+                query = query.neq('status', 'admin_cancelled');
+            }
+
+            const { data, error } = await query;
+            if (error) {
+                console.error('Error fetching markets:', error);
+                setFetchError(error.message);
+            } else if (data) {
+                setMarkets(data);
+                setFetchError(null);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }
 
     return (
         <div className="min-h-screen bg-black text-white font-sans">
