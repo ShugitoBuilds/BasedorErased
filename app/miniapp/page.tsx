@@ -32,7 +32,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://basedorerased.vercel
 const ADMIN_WALLETS = [
     '0xAD355883F2044F7E666270685957d190135359ad',
     '0x26C1122D086A0c3c626B5706922F24599f692A20',
-    '0xd42Fe6aE017daaa721f47cE25a3B66675C2F635d' // User's wallet from logs
+    '0xd42Fe6aE017daaa721f47cE25a3B66675C2F635d'
 ].map(s => s.toLowerCase());
 
 type MarketIndex = {
@@ -47,8 +47,6 @@ type MarketIndex = {
     likes_count?: number;
     threshold?: string;
 };
-
-// ... (Countdown & Other Components remain valid, just updating MarketCard & Main logic) ...
 
 function Countdown({ deadline }: { deadline: string }) {
     const [timeLeft, setTimeLeft] = useState<string>('Loading...');
@@ -190,18 +188,20 @@ function MarketCard({
     const isLive = !!liveData;
 
     return (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 transition-all hover:border-purple-500/30 relative">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 transition-all hover:border-purple-500/30 relative group">
             {isAdmin && (
-                <button
-                    onClick={(e) => { e.stopPropagation(); handleAdminCancel(); }}
-                    className="absolute top-2 right-2 bg-red-900/50 text-red-500 text-[10px] px-2 py-1 rounded hover:bg-red-900 border border-red-500/30 z-10"
-                >
-                    ADMIN CANCEL
-                </button>
+                <div className="absolute top-0 right-0 z-50 p-2">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleAdminCancel(); }}
+                        className="bg-red-600 hover:bg-red-500 text-white text-xs font-black px-3 py-1.5 rounded shadow-lg border border-red-400 transition-all hover:scale-105 flex items-center gap-1"
+                    >
+                        <span>🗑️</span> DELETE
+                    </button>
+                </div>
             )}
 
             {/* Header: User + View Cast */}
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 mt-2">
                 <div className="flex items-center gap-2">
                     {market.author_pfp_url ? (
                         <img src={market.author_pfp_url} alt={market.author_username} className="w-8 h-8 rounded-full border border-zinc-700" />
@@ -322,7 +322,7 @@ function MarketCard({
     );
 }
 
-// ... (Rest of file same, just updating Main to pass isAdmin) ...
+// ... Main Logic ...
 
 type Tab = 'markets' | 'mybets' | 'faq' | 'guide';
 type MarketFilter = 'all' | 'active' | 'resolved';
@@ -382,7 +382,6 @@ function MarketHubContent() {
             let query = supabase
                 .from('market_index')
                 .select('*')
-                // .neq('author_username', 'shugito') // Removed for admin to see all
                 .order('created_at', { ascending: false });
 
             if (search) query = query.ilike('author_username', `%${search}%`);
@@ -390,8 +389,11 @@ function MarketHubContent() {
             if (filter === 'active') query = query.eq('status', 'active');
             else if (filter === 'resolved') query = query.neq('status', 'active');
 
-            // If not admin and not filtering, maybe hide cancelled? 
-            if (!isAdmin) {
+            // HIDE Cancelled markets unless SEARCHING or explicit toggle (not implemented). 
+            // Just hide them from default view.
+            if (filter !== 'all') {
+                // already handled
+            } else {
                 query = query.neq('status', 'admin_cancelled');
             }
 
@@ -415,8 +417,8 @@ function MarketHubContent() {
             <div className="sticky top-0 bg-black/95 backdrop-blur-md z-20 border-b border-white/10">
                 <div className="p-0 pb-4">
                     <div className="w-full bg-zinc-900 text-zinc-500 text-[10px] text-center py-1 font-mono border-b border-zinc-800 mb-4 flex justify-between px-4">
-                        <span>Build: v2.4.0 - Admin Mode</span>
-                        {isAdmin && <span className="text-red-500 font-bold">ADMIN MODE ACTIVE</span>}
+                        <span>Build: v2.4.1 - Fixes</span>
+                        {isAdmin && <span className="text-red-500 font-bold">ADMIN MODE</span>}
                     </div>
                     <div className="mb-4 flex justify-center">
                         <img src="/based-or-erased-banner.png" alt="Based or Erased" className="h-20 object-contain" />
@@ -526,7 +528,87 @@ function ClaimButton({ marketId, onSuccess }: { marketId: number, onSuccess: () 
     );
 }
 
-// My Bets Section
+// My Bets Section, FAQSection, GuideSection ... (restored above)
+
+// RESTORED SECTIONS (Re-pasting for safety in file overwrite context if needed, but I included them in the main block above)
+
+function FAQSection() {
+    const faqs = [
+        {
+            q: "What is Based or Erased?",
+            a: "This is a prediction market for Farcaster content. You bet on whether a specific Cast will achieve a certain number of Likes within 24 hours."
+        },
+        {
+            q: "How do I win?",
+            a: "If you bet 'BASED' and the cast hits the Like Threshold, you win. If you bet 'ERASED' and it fails to hit the target, you win."
+        },
+        {
+            q: "How are payouts calculated?",
+            a: "It's a shared pot system (Pari-mutuel). Visual example: If the BASED pool has $100 and the ERASED pool has $0, and BASED wins, you get your money back. If ERASED had $50, the total pot is $150. Based winners split that $150 proportional to their bet."
+        },
+        {
+            q: "What are the fees?",
+            a: "The protocol takes a small 1% fee from the winning pot to cover operational costs."
+        },
+        {
+            q: "How do I claim my winnings?",
+            a: "Go to the 'My Bets' tab. If you won, you'll see a 'Claim Winnings' button next to completed markets."
+        }
+    ];
+    return (
+        <div className="space-y-3">
+            {faqs.map((f, i) => (
+                <details key={i} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 open:bg-zinc-800 transition-colors">
+                    <summary className="font-bold text-sm cursor-pointer list-none flex justify-between items-center">
+                        {f.q} <span className="text-zinc-500 transform transition-transform open:rotate-180">▼</span>
+                    </summary>
+                    <p className="mt-3 text-zinc-400 text-sm leading-relaxed">{f.a}</p>
+                </details>
+            ))}
+        </div>
+    );
+}
+
+function GuideSection() {
+    return (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-6">
+            <h3 className="text-xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">How to Play</h3>
+
+            <div className="flex gap-4 items-start">
+                <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-lg font-bold shrink-0">1</div>
+                <div>
+                    <h4 className="font-bold text-white mb-1">Find a Cast</h4>
+                    <p className="text-sm text-zinc-400">Browse the 'Markets' tab to see active predictions. Look for casts you think are viral hits or flops.</p>
+                </div>
+            </div>
+
+            <div className="flex gap-4 items-start">
+                <div className="w-8 h-8 rounded-full bg-green-900/30 text-green-500 flex items-center justify-center text-lg font-bold shrink-0">2</div>
+                <div>
+                    <h4 className="font-bold text-green-400 mb-1">Bet BASED (Bullish)</h4>
+                    <p className="text-sm text-zinc-400">Bet this if you think the cast <b>WILL</b> reach the Like Goal before the deadline.</p>
+                </div>
+            </div>
+
+            <div className="flex gap-4 items-start">
+                <div className="w-8 h-8 rounded-full bg-red-900/30 text-red-500 flex items-center justify-center text-lg font-bold shrink-0">3</div>
+                <div>
+                    <h4 className="font-bold text-red-500 mb-1">Bet ERASED (Bearish)</h4>
+                    <p className="text-sm text-zinc-400">Bet this if you think the cast will <b>FAIL</b> to reach the goal.</p>
+                </div>
+            </div>
+
+            <div className="flex gap-4 items-start">
+                <div className="w-8 h-8 rounded-full bg-yellow-900/30 text-yellow-500 flex items-center justify-center text-lg font-bold shrink-0">4</div>
+                <div>
+                    <h4 className="font-bold text-yellow-500 mb-1">Win & Claim</h4>
+                    <p className="text-sm text-zinc-400">When the timer hits zero, the market resolves automatically. If you chose correctly, check 'My Bets' to claim your share of the pot!</p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function MyBetsSection({ markets, address, isConnected, onRefresh }: {
     markets: MarketIndex[];
     address: string | undefined;
@@ -639,40 +721,6 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
                     )}
                 </div>
             ))}
-        </div>
-    );
-}
-
-function FAQSection() {
-    const faqs = [
-        { q: "What is Based or Erased?", a: "Prediction market for Farcaster casts going viral." },
-        { q: "What happens if I win?", a: "You share the losing pool's pot!" },
-        { q: "Fees?", a: "1% protocol fee." }
-    ];
-    return (
-        <div className="space-y-3">
-            {faqs.map((f, i) => (
-                <details key={i} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 open:bg-zinc-800">
-                    <summary className="font-bold text-sm cursor-pointer list-none flex justify-between">
-                        {f.q} <span className="text-zinc-500">▼</span>
-                    </summary>
-                    <p className="mt-2 text-zinc-400 text-sm">{f.a}</p>
-                </details>
-            ))}
-        </div>
-    );
-}
-
-function GuideSection() {
-    return (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-            <h3 className="font-bold mb-4">How to Play</h3>
-            <ul className="space-y-4 text-sm text-zinc-300">
-                <li className="flex gap-3"><span className="text-xl">🔍</span> Find a cast you think will go viral (or flop).</li>
-                <li className="flex gap-3"><span className="text-xl">🟢</span> Bet <b>BASED</b> if you think it will hit the target.</li>
-                <li className="flex gap-3"><span className="text-xl">🔻</span> Bet <b>ERASED</b> if you think it will miss.</li>
-                <li className="flex gap-3"><span className="text-xl">🏆</span> Winners split the pot!</li>
-            </ul>
         </div>
     );
 }
