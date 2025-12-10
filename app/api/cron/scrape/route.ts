@@ -67,20 +67,21 @@ export async function GET(req: NextRequest) {
                 console.log('[Scraper] Launching Serverless Chromium...');
 
                 // OPTIMIZATIONS FOR VERCEL
-                chromium.setGraphicsMode = false; // We don't need WebGL
+                // TS Fix: Cast strictly to prevent type errors with Puppeteer v23
+                const chromiumAny = chromium as any;
+                chromiumAny.setGraphicsMode = false;
 
                 browser = await puppeteer.launch({
                     args: [
-                        ...chromium.args,
+                        ...chromiumAny.args,
                         '--hide-scrollbars',
                         '--disable-web-security',
                         '--no-sandbox',
                         '--disable-setuid-sandbox'
                     ],
-                    defaultViewport: chromium.defaultViewport,
-                    executablePath: await chromium.executablePath(),
-                    headless: chromium.headless,
-                    ignoreHTTPSErrors: true,
+                    defaultViewport: chromiumAny.defaultViewport,
+                    executablePath: await chromiumAny.executablePath(),
+                    headless: chromiumAny.headless,
                 });
             }
         } catch (launchError: any) {
@@ -106,7 +107,8 @@ export async function GET(req: NextRequest) {
                 // Try multiple selectors just in case
                 const anchors = Array.from(document.querySelectorAll('a[href*="/reactions"]'));
                 for (const a of anchors) {
-                    const text = (a as HTMLElement).innerText || '';
+                    // TS Fix: Cast to any to access innerText safely in DOM context
+                    const text = (a as any).innerText || '';
                     // Look for number inside text
                     const match = text.match(/(\d+)/);
                     if (match) return parseInt(match[0], 10);
