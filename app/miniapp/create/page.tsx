@@ -105,13 +105,20 @@ function CreateMarketContent() {
                 <div className="flex flex-col gap-4 p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
                     <div className="flex justify-between items-center">
                         <label className="text-sm font-bold text-zinc-400">Target Likes</label>
-                        <span className="text-2xl font-bold text-green-400">{threshold}</span>
+                        <div className="flex items-center gap-1">
+                             <input
+                                type="number"
+                                value={threshold}
+                                onChange={(e) => setThreshold(Math.max(0, parseInt(e.target.value) || 0))}
+                                className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-right text-green-400 font-bold w-24 focus:ring-1 focus:ring-green-500 outline-none"
+                            />
+                        </div>
                     </div>
                     <input
                         type="range"
-                        min="10"
+                        min="0"
                         max="10000"
-                        step="10"
+                        step="50"
                         value={threshold}
                         onChange={(e) => setThreshold(Number(e.target.value))}
                         className="w-full accent-green-500 h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
