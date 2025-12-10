@@ -390,9 +390,20 @@ function MarketHubContent() {
         <div className="min-h-screen bg-black text-white font-sans">
             <div className="sticky top-0 bg-black/95 backdrop-blur-md z-20 border-b border-white/10">
                 <div className="p-0 pb-4">
-                    <div className="w-full bg-zinc-900 text-zinc-500 text-[10px] text-center py-1 font-mono border-b border-zinc-800 mb-4 flex justify-between px-4">
-                        <span>Build: v2.4.1 - Fixes</span>
-                        {isAdmin && <span className="text-red-500 font-bold">ADMIN MODE</span>}
+                    <div className="w-full bg-zinc-900 border-b border-zinc-800 mb-4 flex justify-between items-center px-4 py-2">
+                        <span className="text-[10px] text-zinc-500 font-mono">v2.4.2 {isAdmin && <span className="text-red-500 font-bold ml-1">ADMIN</span>}</span>
+                        
+                        {/* Wallet / Balance */}
+                        {!isConnected ? (
+                            <button onClick={() => { /* Auto handled by kit or we need connect() */ }} className="bg-white text-black text-xs font-bold px-3 py-1.5 rounded-lg hover:scale-105 transition-transform">
+                                Connect Wallet
+                            </button>
+                        ) : (
+                            <div className="flex items-center gap-2 bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-700">
+                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                <span className="text-xs font-bold text-white">{usdcBalance ? formatUSDC(usdcBalance) : '0'} USDC</span>
+                            </div>
+                        )}
                     </div>
                     <div className="mb-4 flex justify-center">
                         <img src="/based-or-erased-banner.png" alt="Based or Erased" className="h-20 object-contain" />
@@ -585,8 +596,10 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
     isConnected: boolean;
     onRefresh: () => void;
 }) {
+    const [filter, setFilter] = useState<'active' | 'resolved' | 'all'>('active');
+
     // 1. Prepare contracts for Multicall
-    // Only check markets that are in the list (optimization)
+    // ... (rest of hook remains same) ...
     const { data: userBets, isLoading, refetch } = useReadContracts({
         contracts: markets.map(m => ({
             address: CONTRACT_ADDRESS,
@@ -602,9 +615,10 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
             <div className="text-center py-20">
                 <div className="text-6xl mb-4">👛</div>
                 <h2 className="text-xl font-bold mb-2">Connect Your Wallet</h2>
-                <p className="text-zinc-400 mb-6">Connect to view your betting history and claimable winnings.</p>
-                <div className="text-sm text-zinc-500">
-                    Open any market to connect your wallet
+                {/* Standard Connect Button via SDK/Wagmi usually handled implicitly or via dedicated button */}
+                <p className="text-zinc-400 mb-6 font-medium">Connect to view your betting history.</p>
+                <div className="p-4 bg-zinc-900 rounded-xl border border-zinc-800 text-xs text-zinc-500">
+                    Use the "Connect Wallet" button in the top bar.
                 </div>
             </div>
         );
@@ -618,35 +632,45 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
         );
     }
 
-    // 2. Filter markets where user has a bet amount > 0
-    const activeBets = markets.map((market, index) => {
+    // 2. Filter markets where user has a bet amount > 0 AND matches filter status
+    const filteredBets = markets.map((market, index) => {
         const betData = userBets?.[index]?.result as any;
         if (!betData) return null;
-        if (betData.moonAmount > 0n || betData.doomAmount > 0n) {
-            return { market, bet: betData };
-        }
-        return null; // No bet
-    }).filter(item => item !== null);
+        
+        // Must have a bet
+        if (betData.moonAmount === 0n && betData.doomAmount === 0n) return null;
 
-    if (activeBets.length === 0) {
-        return (
-            <div className="text-center py-10">
-                <div className="text-4xl mb-3">🎯</div>
-                <h2 className="text-lg font-bold mb-2">No Active Bets</h2>
-                <p className="text-zinc-500 text-sm">You haven't placed any bets yet.</p>
-                <div className="mt-4 text-xs font-mono text-zinc-600 bg-black/50 p-2 rounded inline-block">{address}</div>
-            </div>
-        );
-    }
+        // Apply Filter
+        if (filter === 'active' && market.status !== 'active') return null;
+        if (filter === 'resolved' && market.status === 'active') return null;
+        
+        return { market, bet: betData };
+    }).filter(item => item !== null);
 
     return (
         <div className="space-y-4">
-            <h2 className="text-lg font-bold mb-4 flex justify-between items-center">
-                <span>Your Bets ({activeBets.length})</span>
-                <button onClick={() => { onRefresh(); refetch(); }} className="text-sm text-zinc-500 hover:text-white">🔄 Refresh</button>
-            </h2>
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold">Your Bets</h2>
+                <div className="flex gap-2 text-xs">
+                     <button onClick={() => setFilter('active')} className={`px-2 py-1 rounded border ${filter === 'active' ? 'bg-green-900/30 border-green-500 text-green-300' : 'border-zinc-800 text-zinc-500'}`}>Active</button>
+                     <button onClick={() => setFilter('resolved')} className={`px-2 py-1 rounded border ${filter === 'resolved' ? 'bg-zinc-800 border-zinc-600 text-zinc-300' : 'border-zinc-800 text-zinc-500'}`}>Resolved</button>
+                     <button onClick={() => setFilter('all')} className={`px-2 py-1 rounded border ${filter === 'all' ? 'bg-purple-900/30 border-purple-500 text-purple-300' : 'border-zinc-800 text-zinc-500'}`}>All</button>
+                </div>
+            </div>
+            
+            {filteredBets.length === 0 ? (
+                <div className="text-center py-10 bg-zinc-900/30 rounded-2xl border border-zinc-800/50">
+                    <p className="text-zinc-500 text-sm">No {filter} bets found.</p>
+                </div>
+            ) : ( 
+               <div className="text-right mb-2">
+                   <button onClick={() => { onRefresh(); refetch(); }} className="text-xs text-zinc-500 hover:text-white flex items-center gap-1 ml-auto">
+                       🔄 Refresh Data
+                   </button>
+               </div>
+            )}
 
-            {activeBets.map((item: any) => (
+            {filteredBets.map((item: any) => (
                 <div key={item.market.market_id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
                     <div className="flex justify-between items-start mb-3">
                         <div className="flex items-center gap-2">
