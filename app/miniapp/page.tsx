@@ -178,12 +178,31 @@ function MarketCard({
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 transition-all hover:border-purple-500/30 relative group">
             {isAdmin && (
-                <div className="absolute top-0 right-0 z-50 p-2">
+                <div className="absolute top-0 right-0 z-50 p-2 flex gap-1">
+                    {market.status === 'active' && (
+                        <>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleResolve(1); }}
+                                className="bg-green-600/90 hover:bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg border border-green-400 backdrop-blur-sm"
+                                title="Resolve as BASED (Moon)"
+                            >
+                                ✅ BASED
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleResolve(2); }}
+                                className="bg-red-600/90 hover:bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg border border-red-400 backdrop-blur-sm"
+                                title="Resolve as ERASED (Doom)"
+                            >
+                                🛑 ERASED
+                            </button>
+                        </>
+                    )}
                     <button
                         onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleAdminCancel(); }}
-                        className="bg-red-600 hover:bg-red-500 text-white text-xs font-black px-3 py-1.5 rounded shadow-lg border border-red-400 transition-all hover:scale-105 flex items-center gap-1"
+                        className="bg-zinc-800 hover:bg-red-900 text-zinc-400 hover:text-red-200 text-[10px] font-bold px-2 py-1 rounded shadow-lg border border-zinc-700 transition-all ml-2"
+                        title="Delete/Hide Market"
                     >
-                        <span>🗑️</span> DELETE
+                        🗑️
                     </button>
                 </div>
             )}
