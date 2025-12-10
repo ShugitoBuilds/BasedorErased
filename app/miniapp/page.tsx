@@ -218,16 +218,14 @@ function MarketCard({
             </p>
 
             {/* Metadata Bar (Progress & Timer) - LIKES TRACKER DISABLED FOR MVP */}
-            <div className="flex items-center justify-end bg-zinc-950/50 rounded-lg p-2 mb-3 border border-zinc-800/50">
-                <div className="flex flex-col items-end w-full">
-                    <div className="flex justify-between w-full items-center mb-1">
-                         <span className={`text-[10px] font-bold ${market.status === 'active' ? 'text-green-400' : 'text-zinc-500'}`}>
-                            {market.status?.toUpperCase()}
-                        </span>
-                        <span className="text-[10px] text-zinc-500">Goal: {market.threshold} Likes</span>
-                    </div>
-                    <Countdown deadline={market.deadline} />
-                </div>
+            <div className="flex items-center justify-between bg-zinc-950/50 rounded-lg p-2 mb-3 border border-zinc-800/50 text-[10px]">
+                <span className={`font-bold ${market.status === 'active' ? 'text-green-400' : 'text-zinc-500'}`}>
+                    {market.status?.toUpperCase()}
+                </span>
+                <span className="text-zinc-500 font-medium text-center flex-1">
+                    Goal: <span className="text-zinc-300">{market.threshold} Likes</span>
+                </span>
+                <Countdown deadline={market.deadline} />
             </div>
 
             {/* Inline Betting / Expand Toggle */}
@@ -307,7 +305,7 @@ function MarketHubContent() {
     const { address, isConnected } = useAccount();
     const [activeTab, setActiveTab] = useState<Tab>('markets');
     const [markets, setMarkets] = useState<MarketIndex[]>([]);
-    const [filter, setFilter] = useState<MarketFilter>('all');
+    const [filter, setFilter] = useState<MarketFilter>('active');
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
@@ -428,9 +426,9 @@ function MarketHubContent() {
                         </div>
 
                         <div className="flex gap-2 text-xs">
-                            <button onClick={() => setFilter('all')} className={`px-3 py-1.5 rounded-lg border ${filter === 'all' ? 'bg-purple-900/30 border-purple-500 text-purple-300' : 'border-zinc-800 text-zinc-500'}`}>All</button>
                             <button onClick={() => setFilter('active')} className={`px-3 py-1.5 rounded-lg border ${filter === 'active' ? 'bg-green-900/30 border-green-500 text-green-300' : 'border-zinc-800 text-zinc-500'}`}>Active</button>
                             <button onClick={() => setFilter('resolved')} className={`px-3 py-1.5 rounded-lg border ${filter === 'resolved' ? 'bg-zinc-800 border-zinc-600 text-zinc-300' : 'border-zinc-800 text-zinc-500'}`}>Resolved</button>
+                            <button onClick={() => setFilter('all')} className={`px-3 py-1.5 rounded-lg border ${filter === 'all' ? 'bg-purple-900/30 border-purple-500 text-purple-300' : 'border-zinc-800 text-zinc-500'}`}>All</button>
                         </div>
 
                         {loading ? (
