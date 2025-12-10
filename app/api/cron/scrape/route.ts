@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import chromium from '@sparticuz/chromium';
+import chromium from '@sparticuz/chromium-min';
 import puppeteer from 'puppeteer-core';
 import { createClient } from '@supabase/supabase-js';
 
 // Vercel function config for max duration - upped to 60s
 export const maxDuration = 60;
-// Force dynamic to prevent caching of the easy/status response
+// Force dynamic to prevent caching
 export const dynamic = 'force-dynamic';
 
 // Initialize Supabase Service Role
@@ -47,8 +47,8 @@ export async function GET(req: NextRequest) {
 
             const m = markets[0];
             marketId = m.market_id;
-            targetUrl = m.cast_hash.startsWith('http')
-                ? m.cast_hash
+            targetUrl = m.cast_hash.startsWith('http') 
+                ? m.cast_hash 
                 : `https://warpcast.com/${m.author_username}/${m.cast_hash}`;
         }
 
@@ -60,56 +60,58 @@ export async function GET(req: NextRequest) {
                 console.log('[Scraper] Launching Local Chrome...');
                 browser = await puppeteer.launch({
                     args: ['--no-sandbox', '--disable-setuid-sandbox'],
-                    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', // Adjust for your local OS if needed
+                    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 
                     headless: true
                 });
             } else {
-                console.log('[Scraper] Launching Serverless Chromium...');
-
-                // OPTIMIZATIONS FOR VERCEL
-                // TS Fix: Cast strictly to prevent type errors with Puppeteer v23
+                console.log('[Scraper] Launching Serverless Chromium (Minified)...');
+                
+                // CRITICAL: Point to the correct remote pack for v131
+                const remotePack = "https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar";
+                
+                // TS Fix for sparticuz types
                 const chromiumAny = chromium as any;
                 chromiumAny.setGraphicsMode = false;
-
+                
                 browser = await puppeteer.launch({
                     args: [
                         ...chromiumAny.args,
                         '--hide-scrollbars',
                         '--disable-web-security',
                         '--no-sandbox',
-                        '--disable-setuid-sandbox'
+                        '--disable-setuid-sandbox',
+                        '--disable-gpu' // Extra safety
                     ],
                     defaultViewport: chromiumAny.defaultViewport,
-                    executablePath: await chromiumAny.executablePath(),
+                    // Download binary at runtime to avoid 50MB limit
+                    executablePath: await chromiumAny.executablePath(remotePack),
                     headless: chromiumAny.headless,
                 });
             }
         } catch (launchError: any) {
             console.error('[Scraper] CRITICAL: Failed to launch browser:', launchError);
+            console.error('[Scraper] Stack:', launchError.stack);
             return NextResponse.json({ error: 'Browser Launch Failed', details: launchError.message }, { status: 500 });
         }
 
         const page = await browser.newPage();
-
-        // Mock User Agent to avoid bot detection
+        
+        // Mock User Agent
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36');
 
         console.log('[Scraper] Navigating...');
-        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 20000 }); // Upped timeout to 20s
+        // 'networkidle2' is safer than 0 for single page apps that keep polling
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 25000 }); 
 
         let likeCount = -1;
         try {
-            // Wait for the specific container that holds likes (often has href ending in /reactions)
-            // We use a generous timeout because Warpcast can be slow to hydrate client-side
-            await page.waitForSelector('a[href*="/reactions"]', { timeout: 8000 });
-
+            console.log('[Scraper] Waiting for selector...');
+            await page.waitForSelector('a[href*="/reactions"]', { timeout: 10000 });
+            
             likeCount = await page.evaluate(() => {
-                // Try multiple selectors just in case
                 const anchors = Array.from(document.querySelectorAll('a[href*="/reactions"]'));
                 for (const a of anchors) {
-                    // TS Fix: Cast to any to access innerText safely in DOM context
                     const text = (a as any).innerText || '';
-                    // Look for number inside text
                     const match = text.match(/(\d+)/);
                     if (match) return parseInt(match[0], 10);
                 }
@@ -117,7 +119,7 @@ export async function GET(req: NextRequest) {
             });
             console.log(`[Scraper] Found Likes: ${likeCount}`);
         } catch (e) {
-            console.warn('[Scraper] Could not find like selector (might be 0 likes or layout changed):', e);
+            console.warn('[Scraper] Could not find like selector:', e);
         }
 
         let screenshot = null;
