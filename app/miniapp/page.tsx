@@ -217,26 +217,15 @@ function MarketCard({
                 {market.cast_text || "Loading cast details..."}
             </p>
 
-            {/* Metadata Bar (Progress & Timer) */}
-            <div className="flex items-center justify-between bg-zinc-950/50 rounded-lg p-2 mb-3 border border-zinc-800/50">
-                <div className="flex flex-col gap-1 flex-1 mr-4">
-                    <div className="flex justify-between text-[10px] text-zinc-400">
-                        <span className="flex items-center gap-1">
-                            {displayLikes} Likes
+            {/* Metadata Bar (Progress & Timer) - LIKES TRACKER DISABLED FOR MVP */}
+            <div className="flex items-center justify-end bg-zinc-950/50 rounded-lg p-2 mb-3 border border-zinc-800/50">
+                <div className="flex flex-col items-end w-full">
+                    <div className="flex justify-between w-full items-center mb-1">
+                         <span className={`text-[10px] font-bold ${market.status === 'active' ? 'text-green-400' : 'text-zinc-500'}`}>
+                            {market.status?.toUpperCase()}
                         </span>
-                        <span>Goal: {market.threshold}</span>
+                        <span className="text-[10px] text-zinc-500">Goal: {market.threshold} Likes</span>
                     </div>
-                    <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-300"
-                            style={{ width: `${Math.min(100, Math.max(0, (displayLikes / Number(market.threshold || 1)) * 100))}%` }}
-                        />
-                    </div>
-                </div>
-                <div className="flex flex-col items-end">
-                    <span className={`text-[10px] font-bold ${market.status === 'active' ? 'text-green-400' : 'text-zinc-500'}`}>
-                        {market.status?.toUpperCase()}
-                    </span>
                     <Countdown deadline={market.deadline} />
                 </div>
             </div>
