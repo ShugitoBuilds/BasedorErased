@@ -32,7 +32,8 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://basedorerased.vercel
 const ADMIN_WALLETS = [
     '0xAD355883F2044F7E666270685957d190135359ad',
     '0x26C1122D086A0c3c626B5706922F24599f692A20',
-    '0xd42Fe6aE017daaa721f47cE25a3B66675C2F635d'
+    '0xd42Fe6aE017daaa721f47cE25a3B66675C2F635d',
+    '0x05eebf02305bf34c446c298105174e099c716bb9'
 ].map(s => s.toLowerCase());
 
 type MarketIndex = {
