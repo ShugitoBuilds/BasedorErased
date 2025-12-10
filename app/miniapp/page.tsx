@@ -67,7 +67,7 @@ function Countdown({ deadline }: { deadline: string }) {
         return () => clearInterval(interval);
     }, [deadline]);
 
-    return <span className="text-zinc-500 font-mono text-[10px]">{timeLeft}</span>;
+    return <span className="text-zinc-500 font-mono text-[10px]">N/A</span>;
 }
 
 // MARKET CARD
@@ -78,6 +78,8 @@ function MarketCard({
     refreshFinancials,
     isAdmin
 }: {
+    market: MarketIndex,
+    usdcBalance?: bigint,
     allowance?: bigint,
     refreshFinancials: () => void,
     isAdmin: boolean
