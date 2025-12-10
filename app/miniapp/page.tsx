@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { WagmiProvider, useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { config } from '@/lib/wagmi';
 import { sdk } from '@farcaster/miniapp-sdk';
 import { formatUSDC, parseUSDC, getMoonOdds, getDoomOdds } from '@/lib/contract';
@@ -144,6 +144,22 @@ function MarketCard({
         }
     };
 
+    // --- LIVE SCORE FETCH ---
+    const { data: liveData } = useQuery({
+        queryKey: ['likes', market.cast_hash],
+        queryFn: async () => {
+            if (!market.cast_hash || market.cast_hash.length < 10) return null;
+            const res = await fetch(`/api/live-score?hash=${market.cast_hash}`);
+            if (!res.ok) throw new Error('Failed to fetch');
+            return res.json() as Promise<{ likes: number }>;
+        },
+        enabled: market.status === 'active' && !!market.cast_hash,
+        refetchInterval: 5000
+    });
+
+    const displayLikes = liveData?.likes ?? market.likes_count ?? 0;
+    const isLive = !!liveData;
+
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 transition-all hover:border-purple-500/30">
             {/* Header: User + View Cast */}
@@ -179,13 +195,16 @@ function MarketCard({
             <div className="flex items-center justify-between bg-zinc-950/50 rounded-lg p-2 mb-3 border border-zinc-800/50">
                 <div className="flex flex-col gap-1 flex-1 mr-4">
                     <div className="flex justify-between text-[10px] text-zinc-400">
-                        <span>{market.likes_count || 0} Likes</span>
+                        <span className="flex items-center gap-1">
+                            {displayLikes} Likes
+                            {isLive && <span className="text-[8px] bg-red-500/20 text-red-500 px-1 rounded font-bold animate-pulse">LIVE</span>}
+                        </span>
                         <span>Goal: {market.threshold}</span>
                     </div>
                     <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
                         <div
                             className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-300"
-                            style={{ width: `${Math.min(100, Math.max(0, ((market.likes_count || 0) / Number(market.threshold || 1)) * 100))}%` }}
+                            style={{ width: `${Math.min(100, Math.max(0, (displayLikes / Number(market.threshold || 1)) * 100))}%` }}
                         />
                     </div>
                 </div>
@@ -298,8 +317,6 @@ function MarketHubContent() {
         refetchBalance();
     };
 
-    // Removed the manual Supabase check block since we can just handle error gracefully in fetch
-
     useEffect(() => {
         async function initSDK() {
             try { await sdk.actions.ready(); } catch (err) { console.error(err); }
@@ -351,7 +368,7 @@ function MarketHubContent() {
             <div className="sticky top-0 bg-black/95 backdrop-blur-md z-20 border-b border-white/10">
                 <div className="p-0 pb-4">
                     <div className="w-full bg-zinc-900 text-zinc-500 text-[10px] text-center py-1 font-mono border-b border-zinc-800 mb-4">
-                        Build: v2.2.3 - Reconnected Build
+                        Build: v2.2.3 - Live Data 🔴
                     </div>
                     <div className="mb-4 flex justify-center">
                         <img src="/based-or-erased-banner.png" alt="Based or Erased" className="h-20 object-contain" />
