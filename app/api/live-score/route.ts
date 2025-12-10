@@ -26,7 +26,6 @@ export async function GET(req: NextRequest) {
         }
 
         // 2. Fetch Reactions (Limit 100 for efficiency)
-        // We use 'types=likes' to filter only likes
         const reactionsRes = await fetch(
             `https://api.neynar.com/v2/farcaster/reactions/cast?hash=${castHash}&types=likes&limit=100`,
             {
@@ -45,7 +44,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ likes: 0 });
         }
 
-        // 3. Bulk Fetch Users to check 'power_badge'
+        // 3. Bulk Fetch Users to check Power Badge OR Verifications
         const fids = reactions.map((r: any) => r.user.fid).filter((f: any) => !!f).join(',');
 
         const bulkRes = await fetch(
@@ -61,20 +60,21 @@ export async function GET(req: NextRequest) {
             const bulkData = await bulkRes.json();
             const users = bulkData.users || [];
 
-            // STRICT FILTER: Only Power Badge holders count
-            validLikes = users.filter((u: any) => u.power_badge === true).length;
+            // RELAXED FILTER: Power Badge OR Verified Wallet
+            // This filters out "No-Wallet Bots" but keeps regular authenticated users.
+            validLikes = users.filter((u: any) =>
+                u.power_badge === true ||
+                (u.verifications && u.verifications.length > 0)
+            ).length;
 
         } else {
-            // Fallback: If bulk fails, report 0 (fail safe against bots) or raw?
-            // User wants strict anti-bot. Let's return raw but maybe log error?
-            // Actually, safer to return 0/partial if we promised strict. 
-            // But let's fallback to reactions.length to avoid '0' shock if API just hiccups.
+            // Fallback
             validLikes = reactions.length;
         }
 
         return NextResponse.json({
             likes: validLikes,
-            status: 'filtered'
+            status: 'filtered_verified'
         });
 
     } catch (err: any) {
