@@ -154,7 +154,7 @@ function MarketCard({
             return res.json() as Promise<{ likes: number }>;
         },
         enabled: market.status === 'active' && !!market.cast_hash,
-        refetchInterval: 5000
+        refetchInterval: 30000 // Poll every 30s (Conservative)
     });
 
     const displayLikes = liveData?.likes ?? market.likes_count ?? 0;
@@ -368,7 +368,7 @@ function MarketHubContent() {
             <div className="sticky top-0 bg-black/95 backdrop-blur-md z-20 border-b border-white/10">
                 <div className="p-0 pb-4">
                     <div className="w-full bg-zinc-900 text-zinc-500 text-[10px] text-center py-1 font-mono border-b border-zinc-800 mb-4">
-                        Build: v2.2.3 - Live Data 🔴
+                        Build: v2.3.0 - Live Data + Resolution
                     </div>
                     <div className="mb-4 flex justify-center">
                         <img src="/based-or-erased-banner.png" alt="Based or Erased" className="h-20 object-contain" />
@@ -441,6 +441,38 @@ function TabButton({ active, onClick, icon, children }: { active: boolean, onCli
     return (
         <button onClick={onClick} className={`px-4 py-2 rounded-xl font-semibold text-sm whitespace-nowrap flex items-center gap-2 transition-all ${active ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-400'}`}>
             <span>{icon}</span>{children}
+        </button>
+    );
+}
+
+function ClaimButton({ marketId, onSuccess }: { marketId: number, onSuccess: () => void }) {
+    const { writeContractAsync, data: hash } = useWriteContract();
+    const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+    useEffect(() => {
+        if (isSuccess) onSuccess();
+    }, [isSuccess]);
+
+    const handleClaim = async () => {
+        try {
+            await writeContractAsync({
+                address: CONTRACT_ADDRESS,
+                abi: contractABI,
+                functionName: 'claimWinnings',
+                args: [BigInt(marketId)],
+            });
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    return (
+        <button
+            onClick={handleClaim}
+            disabled={isConfirming}
+            className="w-full mt-2 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-bold rounded-lg text-sm hover:scale-105 transition-all disabled:opacity-50"
+        >
+            {isConfirming ? 'Claiming...' : '🏆 Claim Winnings'}
         </button>
     );
 }
@@ -520,9 +552,16 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
                             <img src={item.market.author_pfp_url} className="w-6 h-6 rounded-full" />
                             <span className="font-bold text-sm">@{item.market.author_username}</span>
                         </div>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${item.market.status === 'active' ? 'bg-green-900 text-green-400' : 'bg-zinc-700 text-zinc-400'}`}>
-                            {item.market.status.toUpperCase()}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${item.market.status === 'active' ? 'bg-green-900 text-green-400' : 'bg-zinc-700 text-zinc-400'}`}>
+                                {item.market.status.toUpperCase()}
+                            </span>
+                            {item.market.status === 'resolved' && (
+                                <span className="text-[10px] text-zinc-500">
+                                    Pending payout
+                                </span>
+                            )}
+                        </div>
                     </div>
 
                     <Link href={`/miniapp?marketId=${item.market.market_id}`} className="block mb-4 hover:opacity-80 transition-opacity">
@@ -544,7 +583,11 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
                         )}
                     </div>
 
-                    {item.bet.claimed && <div className="mt-2 text-center text-xs text-green-400 font-bold bg-green-900/20 py-1 rounded">✅ Paid Out</div>}
+                    {item.bet.claimed ? (
+                        <div className="mt-2 text-center text-xs text-green-400 font-bold bg-green-900/20 py-1 rounded">✅ Paid Out</div>
+                    ) : (
+                        item.market.status !== 'active' && <ClaimButton marketId={item.market.market_id} onSuccess={() => { onRefresh(); refetch(); }} />
+                    )}
                 </div>
             ))}
         </div>
