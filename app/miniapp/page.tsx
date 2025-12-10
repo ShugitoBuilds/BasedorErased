@@ -80,8 +80,7 @@ function MarketCard({
 }: {
     allowance?: bigint,
     refreshFinancials: () => void,
-    isAdmin: boolean,
-    activeCurrency: { symbol: string, address?: string }
+    isAdmin: boolean
 }) {
     const { isConnected, address } = useAccount();
     const [expanded, setExpanded] = useState(false);
@@ -248,23 +247,18 @@ function MarketCard({
 
                     {/* Action Buttons */}
                     <div className="grid grid-cols-2 gap-2 mb-2">
-                        {activeCurrency.symbol !== 'USDC' && (
-                            <div className="col-span-2 text-[10px] text-yellow-500 text-center bg-yellow-900/20 rounded p-1 mb-1">
-                                ⚠️ Betting only supports USDC
-                            </div>
-                        )}
                         <button
                             onClick={() => handleBet(true)}
-                            disabled={isConfirming || activeCurrency.symbol !== 'USDC'}
-                            className="relative overflow-hidden p-2 rounded-lg bg-green-900/20 border border-green-500/30 hover:border-green-500/60 transition-all text-left group disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={isConfirming}
+                            className="relative overflow-hidden p-2 rounded-lg bg-green-900/20 border border-green-500/30 hover:border-green-500/60 transition-all text-left group disabled:opacity-50"
                         >
                             <div className="text-[10px] font-bold text-green-500 mb-0.5">BASED 🟢</div>
                             <div className="text-white font-black">{Math.round(odds.moon)}%</div>
                         </button>
                         <button
                             onClick={() => handleBet(false)}
-                            disabled={isConfirming || activeCurrency.symbol !== 'USDC'}
-                            className="relative overflow-hidden p-2 rounded-lg bg-red-900/20 border border-red-500/30 hover:border-red-500/60 transition-all text-left group disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={isConfirming}
+                            className="relative overflow-hidden p-2 rounded-lg bg-red-900/20 border border-red-500/30 hover:border-red-500/60 transition-all text-left group disabled:opacity-50"
                         >
                             <div className="text-[10px] font-bold text-red-500 mb-0.5">ERASED 🔻</div>
                             <div className="text-white font-black">{Math.round(odds.doom)}%</div>
@@ -301,20 +295,15 @@ function MarketCard({
     );
 }
 
+
 // ... Main Logic ...
 
-type Tab = 'markets' | 'mybets' | 'faq' | 'guide';
+type Tab = 'markets' | 'mybets' | 'guide';
 type MarketFilter = 'all' | 'active' | 'resolved';
-
-const CURRENCIES = [
-    { symbol: 'USDC', address: USDC_ADDRESS },
-    { symbol: 'ETH', address: undefined }, // Native
-];
 
 function MarketHubContent() {
     const { address, isConnected } = useAccount();
     const [activeTab, setActiveTab] = useState<Tab>('markets');
-    const [activeCurrency, setActiveCurrency] = useState(CURRENCIES[0]);
     const [markets, setMarkets] = useState<MarketIndex[]>([]);
     const [filter, setFilter] = useState<MarketFilter>('active');
     const [search, setSearch] = useState('');
@@ -338,15 +327,6 @@ function MarketHubContent() {
         args: address ? [address] : undefined,
         query: { enabled: !!address }
     });
-
-    const { data: ethBalance } = useBalance({
-        address,
-        query: { enabled: !!address && activeCurrency.symbol === 'ETH' }
-    });
-
-    const displayBalance = activeCurrency.symbol === 'USDC' 
-        ? (usdcBalance ? formatUSDC(usdcBalance) : '0')
-        : (ethBalance ? parseFloat(formatEther(ethBalance.value)).toFixed(4) : '0');
 
     const refreshFinancials = () => {
         refetchAllowance();
@@ -421,18 +401,9 @@ function MarketHubContent() {
                                 Connect Wallet
                             </button>
                         ) : (
-                            <div className="flex items-center gap-2 bg-zinc-800 p-1 rounded-lg border border-zinc-700">
-                                <div className="flex items-center gap-1.5 px-2">
-                                     <div className={`w-2 h-2 rounded-full animate-pulse ${activeCurrency.symbol === 'USDC' ? 'bg-blue-500' : 'bg-purple-500'}`} />
-                                     <span className="text-xs font-bold text-white">{displayBalance}</span>
-                                </div>
-                                <select 
-                                    value={activeCurrency.symbol}
-                                    onChange={(e) => setActiveCurrency(CURRENCIES.find(c => c.symbol === e.target.value) || CURRENCIES[0])}
-                                    className="bg-zinc-900 text-[10px] font-bold text-zinc-300 rounded px-1 py-1 outline-none border border-zinc-700 focus:border-purple-500"
-                                >
-                                    {CURRENCIES.map(c => <option key={c.symbol} value={c.symbol}>{c.symbol}</option>)}
-                                </select>
+                            <div className="flex items-center gap-2 bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-700">
+                                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                <span className="text-xs font-bold text-white">{usdcBalance ? formatUSDC(usdcBalance) : '0'} USDC</span>
                             </div>
                         )}
                     </div>
@@ -440,10 +411,9 @@ function MarketHubContent() {
                         <img src="/based-or-erased-banner.png" alt="Based or Erased" className="h-20 object-contain" />
                     </div>
 
-                    <div className="grid grid-cols-4 gap-1 px-4 mb-2">
+                    <div className="grid grid-cols-3 gap-1 px-4 mb-2">
                         <TabButton active={activeTab === 'markets'} onClick={() => setActiveTab('markets')} icon="🎲">Markets</TabButton>
                         <TabButton active={activeTab === 'mybets'} onClick={() => setActiveTab('mybets')} icon="💰">Bets</TabButton>
-                        <TabButton active={activeTab === 'faq'} onClick={() => setActiveTab('faq')} icon="❓">FAQ</TabButton>
                         <TabButton active={activeTab === 'guide'} onClick={() => setActiveTab('guide')} icon="📚">Guide</TabButton>
                     </div>
                 </div>
@@ -487,7 +457,6 @@ function MarketHubContent() {
                                         allowance={allowance}
                                         refreshFinancials={refreshFinancials}
                                         isAdmin={isAdmin}
-                                        activeCurrency={activeCurrency}
                                     />
                                 ))}
                                 {markets.length === 0 && <div className="text-center text-zinc-500 py-10">No markets found.</div>}
@@ -497,7 +466,6 @@ function MarketHubContent() {
                 )}
 
                 {activeTab === 'mybets' && <MyBetsSection markets={markets} address={address} isConnected={isConnected} onRefresh={fetchMarkets} />}
-                {activeTab === 'faq' && <FAQSection />}
                 {activeTab === 'guide' && <GuideSection />}
             </div>
         </div>
