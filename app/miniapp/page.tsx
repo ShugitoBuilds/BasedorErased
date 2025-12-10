@@ -6,13 +6,13 @@ export const dynamic = 'force-dynamic';
 import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
-import { WagmiProvider, useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { WagmiProvider, useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, useBalance } from 'wagmi';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { config } from '@/lib/wagmi';
 import { sdk } from '@farcaster/miniapp-sdk';
 import { formatUSDC, parseUSDC, getMoonOdds, getDoomOdds } from '@/lib/contract';
 import contractABI from '@/lib/contractABI.json';
-import { erc20Abi, maxUint256 } from 'viem';
+import { erc20Abi, maxUint256, formatEther } from 'viem';
 
 // Safely initialize Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -228,6 +228,7 @@ function MarketCard({
                 <Countdown deadline={market.deadline} />
             </div>
 
+
             {/* Inline Betting / Expand Toggle */}
             {expanded ? (
                 <div className="mt-3 bg-zinc-950 rounded-xl p-3 border border-zinc-800 animate-in fade-in slide-in-from-top-2">
@@ -251,7 +252,7 @@ function MarketCard({
                         <button
                             onClick={() => handleBet(true)}
                             disabled={isConfirming}
-                            className="relative overflow-hidden p-2 rounded-lg bg-green-900/20 border border-green-500/30 hover:border-green-500/60 transition-all text-left group"
+                            className="relative overflow-hidden p-2 rounded-lg bg-green-900/20 border border-green-500/30 hover:border-green-500/60 transition-all text-left group disabled:opacity-50"
                         >
                             <div className="text-[10px] font-bold text-green-500 mb-0.5">BASED 🟢</div>
                             <div className="text-white font-black">{Math.round(odds.moon)}%</div>
@@ -259,7 +260,7 @@ function MarketCard({
                         <button
                             onClick={() => handleBet(false)}
                             disabled={isConfirming}
-                            className="relative overflow-hidden p-2 rounded-lg bg-red-900/20 border border-red-500/30 hover:border-red-500/60 transition-all text-left group"
+                            className="relative overflow-hidden p-2 rounded-lg bg-red-900/20 border border-red-500/30 hover:border-red-500/60 transition-all text-left group disabled:opacity-50"
                         >
                             <div className="text-[10px] font-bold text-red-500 mb-0.5">ERASED 🔻</div>
                             <div className="text-white font-black">{Math.round(odds.doom)}%</div>
@@ -301,9 +302,15 @@ function MarketCard({
 type Tab = 'markets' | 'mybets' | 'faq' | 'guide';
 type MarketFilter = 'all' | 'active' | 'resolved';
 
+const CURRENCIES = [
+    { symbol: 'USDC', address: USDC_ADDRESS },
+    { symbol: 'ETH', address: undefined }, // Native
+];
+
 function MarketHubContent() {
     const { address, isConnected } = useAccount();
     const [activeTab, setActiveTab] = useState<Tab>('markets');
+    const [activeCurrency, setActiveCurrency] = useState(CURRENCIES[0]);
     const [markets, setMarkets] = useState<MarketIndex[]>([]);
     const [filter, setFilter] = useState<MarketFilter>('active');
     const [search, setSearch] = useState('');
@@ -328,10 +335,21 @@ function MarketHubContent() {
         query: { enabled: !!address }
     });
 
+    const { data: ethBalance } = useBalance({
+        address,
+        query: { enabled: !!address && activeCurrency.symbol === 'ETH' }
+    });
+
+    const displayBalance = activeCurrency.symbol === 'USDC' 
+        ? (usdcBalance ? formatUSDC(usdcBalance) : '0')
+        : (ethBalance ? parseFloat(formatEther(ethBalance.value)).toFixed(4) : '0');
+
     const refreshFinancials = () => {
         refetchAllowance();
         refetchBalance();
     };
+
+    // ... (SDK Init etc)
 
     useEffect(() => {
         async function initSDK() {
@@ -348,43 +366,7 @@ function MarketHubContent() {
         }
     }, [activeTab, search, filter]);
 
-    async function fetchMarkets() {
-        if (!supabase) { setFetchError("Supabase not configured"); setLoading(false); return; }
-        setLoading(true);
-
-        try {
-            let query = supabase
-                .from('market_index')
-                .select('*')
-                .order('created_at', { ascending: false });
-
-            if (search) query = query.ilike('author_username', `%${search}%`);
-
-            if (filter === 'active') query = query.eq('status', 'active');
-            else if (filter === 'resolved') query = query.neq('status', 'active');
-
-            // HIDE Cancelled markets unless SEARCHING or explicit toggle (not implemented). 
-            // Just hide them from default view.
-            if (filter !== 'all') {
-                // already handled
-            } else {
-                query = query.neq('status', 'admin_cancelled');
-            }
-
-            const { data, error } = await query;
-            if (error) {
-                console.error('Error fetching markets:', error);
-                setFetchError(error.message);
-            } else if (data) {
-                setMarkets(data);
-                setFetchError(null);
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    }
+    // ... (fetchMarkets)
 
     return (
         <div className="min-h-screen bg-black text-white font-sans">
@@ -395,13 +377,22 @@ function MarketHubContent() {
                         
                         {/* Wallet / Balance */}
                         {!isConnected ? (
-                            <button onClick={() => { /* Auto handled by kit or we need connect() */ }} className="bg-white text-black text-xs font-bold px-3 py-1.5 rounded-lg hover:scale-105 transition-transform">
+                            <button onClick={() => { /* Auto handled */ }} className="bg-white text-black text-xs font-bold px-3 py-1.5 rounded-lg hover:scale-105 transition-transform">
                                 Connect Wallet
                             </button>
                         ) : (
-                            <div className="flex items-center gap-2 bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-700">
-                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                <span className="text-xs font-bold text-white">{usdcBalance ? formatUSDC(usdcBalance) : '0'} USDC</span>
+                            <div className="flex items-center gap-2 bg-zinc-800 p-1 rounded-lg border border-zinc-700">
+                                <div className="flex items-center gap-1.5 px-2">
+                                     <div className={`w-2 h-2 rounded-full animate-pulse ${activeCurrency.symbol === 'USDC' ? 'bg-blue-500' : 'bg-purple-500'}`} />
+                                     <span className="text-xs font-bold text-white">{displayBalance}</span>
+                                </div>
+                                <select 
+                                    value={activeCurrency.symbol}
+                                    onChange={(e) => setActiveCurrency(CURRENCIES.find(c => c.symbol === e.target.value) || CURRENCIES[0])}
+                                    className="bg-zinc-900 text-[10px] font-bold text-zinc-300 rounded px-1 py-1 outline-none border border-zinc-700 focus:border-purple-500"
+                                >
+                                    {CURRENCIES.map(c => <option key={c.symbol} value={c.symbol}>{c.symbol}</option>)}
+                                </select>
                             </div>
                         )}
                     </div>
@@ -409,9 +400,9 @@ function MarketHubContent() {
                         <img src="/based-or-erased-banner.png" alt="Based or Erased" className="h-20 object-contain" />
                     </div>
 
-                    <div className="flex gap-2 overflow-x-auto pb-2 px-4 no-scrollbar">
+                    <div className="grid grid-cols-4 gap-1 px-4 mb-2">
                         <TabButton active={activeTab === 'markets'} onClick={() => setActiveTab('markets')} icon="🎲">Markets</TabButton>
-                        <TabButton active={activeTab === 'mybets'} onClick={() => setActiveTab('mybets')} icon="💰">My Bets</TabButton>
+                        <TabButton active={activeTab === 'mybets'} onClick={() => setActiveTab('mybets')} icon="💰">Bets</TabButton>
                         <TabButton active={activeTab === 'faq'} onClick={() => setActiveTab('faq')} icon="❓">FAQ</TabButton>
                         <TabButton active={activeTab === 'guide'} onClick={() => setActiveTab('guide')} icon="📚">Guide</TabButton>
                     </div>
@@ -475,8 +466,9 @@ function MarketHubContent() {
 // ... tab components ... 
 function TabButton({ active, onClick, icon, children }: { active: boolean, onClick: () => void, icon: string, children: React.ReactNode }) {
     return (
-        <button onClick={onClick} className={`px-4 py-2 rounded-xl font-semibold text-sm whitespace-nowrap flex items-center gap-2 transition-all ${active ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-400'}`}>
-            <span>{icon}</span>{children}
+        <button onClick={onClick} className={`px-2 py-2 rounded-xl text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all ${active ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-400'}`}>
+            <span className="text-lg leading-none">{icon}</span>
+            <span>{children}</span>
         </button>
     );
 }
