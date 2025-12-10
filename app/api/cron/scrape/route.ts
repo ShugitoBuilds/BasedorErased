@@ -19,7 +19,6 @@ export async function GET(req: NextRequest) {
     try {
         console.log('--- Starting Scraper ---');
 
-        // 1. Determine Target URL
         let targetUrl = '';
         let marketId = -1;
 
@@ -48,10 +47,9 @@ export async function GET(req: NextRequest) {
 
         console.log(`Target: ${targetUrl}`);
 
-        // 2. Launch Puppeteer
         let browser;
         if (process.env.NODE_ENV === 'development') {
-            // Local Dev Fallback (needs Chrome installed)
+            // Local Dev Fallback
             browser = await puppeteer.launch({
                 args: ['--no-sandbox', '--disable-setuid-sandbox'],
                 executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -59,19 +57,19 @@ export async function GET(req: NextRequest) {
             });
         } else {
             // Production (Vercel)
-            // Fix: Cast chromium to any to avoid type error on defaultViewport
+            // TS Fix: Cast chromium to any to bypass strict type definition mismatches
+            const chromiumAny = chromium as any;
             browser = await puppeteer.launch({
-                args: chromium.args,
-                defaultViewport: (chromium as any).defaultViewport,
-                executablePath: await chromium.executablePath(),
-                headless: chromium.headless,
+                args: chromiumAny.args,
+                defaultViewport: chromiumAny.defaultViewport,
+                executablePath: await chromiumAny.executablePath(),
+                headless: chromiumAny.headless,
             });
         }
 
         const page = await browser.newPage();
         await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 15000 });
 
-        // 3. Extract Likes
         let likeCount = -1;
         try {
             await page.waitForSelector('a[href*="/reactions"]', { timeout: 5000 });
@@ -95,7 +93,6 @@ export async function GET(req: NextRequest) {
 
         await browser.close();
 
-        // 4. Update Database
         if (likeCount > -1 && marketId > -1) {
             const { error: updateError } = await supabase
                 .from('market_index')
