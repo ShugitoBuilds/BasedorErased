@@ -193,7 +193,7 @@ function MarketCard({
 
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 transition-all hover:border-purple-500/30 relative group">
-            {/* ADMIN CONFIRMATION OVERLAY */}
+            {/* ADMIN UI DISABLED (Commented out for now)
             {isAdmin && confirmState && (
                 <div className="absolute inset-0 z-50 bg-black/90 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-4 text-center animate-in fade-in duration-200">
                     <p className="text-white font-bold text-sm mb-1">
@@ -250,6 +250,7 @@ function MarketCard({
                     </button>
                 </div>
             )}
+            */}
 
             {/* Header: User + View Cast */}
             <div className="flex items-center justify-between mb-3 mt-2">
