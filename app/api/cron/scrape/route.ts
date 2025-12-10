@@ -76,7 +76,8 @@ export async function GET(req: NextRequest) {
             likeCount = await page.evaluate(() => {
                 const anchors = Array.from(document.querySelectorAll('a[href*="/reactions"]'));
                 for (const a of anchors) {
-                    const text = a.innerText;
+                    // TS Fix: Cast a to any to access innerText without HTMLElement type issues
+                    const text = (a as any).innerText;
                     const match = text.match(/(\d+)/);
                     if (match) return parseInt(match[0], 10);
                 }
