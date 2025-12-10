@@ -78,11 +78,10 @@ function MarketCard({
     refreshFinancials,
     isAdmin
 }: {
-    market: MarketIndex,
-    usdcBalance?: bigint,
     allowance?: bigint,
     refreshFinancials: () => void,
-    isAdmin: boolean
+    isAdmin: boolean,
+    activeCurrency: { symbol: string, address?: string }
 }) {
     const { isConnected, address } = useAccount();
     const [expanded, setExpanded] = useState(false);
@@ -249,18 +248,23 @@ function MarketCard({
 
                     {/* Action Buttons */}
                     <div className="grid grid-cols-2 gap-2 mb-2">
+                        {activeCurrency.symbol !== 'USDC' && (
+                            <div className="col-span-2 text-[10px] text-yellow-500 text-center bg-yellow-900/20 rounded p-1 mb-1">
+                                ⚠️ Betting only supports USDC
+                            </div>
+                        )}
                         <button
                             onClick={() => handleBet(true)}
-                            disabled={isConfirming}
-                            className="relative overflow-hidden p-2 rounded-lg bg-green-900/20 border border-green-500/30 hover:border-green-500/60 transition-all text-left group disabled:opacity-50"
+                            disabled={isConfirming || activeCurrency.symbol !== 'USDC'}
+                            className="relative overflow-hidden p-2 rounded-lg bg-green-900/20 border border-green-500/30 hover:border-green-500/60 transition-all text-left group disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <div className="text-[10px] font-bold text-green-500 mb-0.5">BASED 🟢</div>
                             <div className="text-white font-black">{Math.round(odds.moon)}%</div>
                         </button>
                         <button
                             onClick={() => handleBet(false)}
-                            disabled={isConfirming}
-                            className="relative overflow-hidden p-2 rounded-lg bg-red-900/20 border border-red-500/30 hover:border-red-500/60 transition-all text-left group disabled:opacity-50"
+                            disabled={isConfirming || activeCurrency.symbol !== 'USDC'}
+                            className="relative overflow-hidden p-2 rounded-lg bg-red-900/20 border border-red-500/30 hover:border-red-500/60 transition-all text-left group disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <div className="text-[10px] font-bold text-red-500 mb-0.5">ERASED 🔻</div>
                             <div className="text-white font-black">{Math.round(odds.doom)}%</div>
@@ -483,6 +487,7 @@ function MarketHubContent() {
                                         allowance={allowance}
                                         refreshFinancials={refreshFinancials}
                                         isAdmin={isAdmin}
+                                        activeCurrency={activeCurrency}
                                     />
                                 ))}
                                 {markets.length === 0 && <div className="text-center text-zinc-500 py-10">No markets found.</div>}
