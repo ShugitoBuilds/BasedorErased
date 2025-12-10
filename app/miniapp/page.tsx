@@ -223,7 +223,6 @@ function MarketCard({
                     <div className="flex justify-between text-[10px] text-zinc-400">
                         <span className="flex items-center gap-1">
                             {displayLikes} Likes
-                            {/* Replaced 'LIVE' with simple 'UPDATED' or nothing since it's cron-based now */}
                         </span>
                         <span>Goal: {market.threshold}</span>
                     </div>
@@ -706,5 +705,15 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
                 </div>
             ))}
         </div>
+    );
+}
+
+export default function MarketHub() {
+    return (
+        <WagmiProvider config={config}>
+            <QueryClientProvider client={queryClient}>
+                <MarketHubContent />
+            </QueryClientProvider>
+        </WagmiProvider>
     );
 }
