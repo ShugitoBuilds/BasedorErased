@@ -664,11 +664,14 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
         // Must have a bet
         if (betData.moonAmount === 0n && betData.doomAmount === 0n) return null;
 
+        const isExpired = new Date(market.deadline).getTime() < Date.now();
+        const isResolvedOrExpired = market.status !== 'active' || isExpired;
+
         // Apply Filter
-        if (filter === 'active' && market.status !== 'active') return null;
-        if (filter === 'resolved' && market.status === 'active') return null;
+        if (filter === 'active' && isResolvedOrExpired) return null;
+        if (filter === 'resolved' && !isResolvedOrExpired) return null;
         
-        return { market, bet: betData };
+        return { market, bet: betData, isExpired };
     }).filter(item => item !== null);
 
     return (
@@ -677,14 +680,14 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
                 <h2 className="text-lg font-bold">Your Bets</h2>
                 <div className="flex gap-2 text-xs">
                      <button onClick={() => setFilter('active')} className={`px-2 py-1 rounded border ${filter === 'active' ? 'bg-green-900/30 border-green-500 text-green-300' : 'border-zinc-800 text-zinc-500'}`}>Active</button>
-                     <button onClick={() => setFilter('resolved')} className={`px-2 py-1 rounded border ${filter === 'resolved' ? 'bg-zinc-800 border-zinc-600 text-zinc-300' : 'border-zinc-800 text-zinc-500'}`}>Resolved</button>
+                     <button onClick={() => setFilter('resolved')} className={`px-2 py-1 rounded border ${filter === 'resolved' ? 'bg-zinc-800 border-zinc-600 text-zinc-300' : 'border-zinc-800 text-zinc-500'}`}>History</button>
                      <button onClick={() => setFilter('all')} className={`px-2 py-1 rounded border ${filter === 'all' ? 'bg-purple-900/30 border-purple-500 text-purple-300' : 'border-zinc-800 text-zinc-500'}`}>All</button>
                 </div>
             </div>
             
             {filteredBets.length === 0 ? (
                 <div className="text-center py-10 bg-zinc-900/30 rounded-2xl border border-zinc-800/50">
-                    <p className="text-zinc-500 text-sm">No {filter} bets found.</p>
+                    <p className="text-zinc-500 text-sm">No bets found.</p>
                 </div>
             ) : ( 
                <div className="text-right mb-2">
@@ -702,14 +705,9 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
                             <span className="font-bold text-sm">@{item.market.author_username}</span>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${item.market.status === 'active' ? 'bg-green-900 text-green-400' : 'bg-zinc-700 text-zinc-400'}`}>
-                                {item.market.status.toUpperCase()}
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${item.market.status === 'active' && !item.isExpired ? 'bg-green-900 text-green-400' : 'bg-zinc-700 text-zinc-400'}`}>
+                                {item.market.status === 'active' && item.isExpired ? 'EXPIRED' : item.market.status.toUpperCase()}
                             </span>
-                            {item.market.status === 'resolved' && (
-                                <span className="text-[10px] text-zinc-500">
-                                    Pending payout
-                                </span>
-                            )}
                         </div>
                     </div>
 
@@ -735,7 +733,8 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
                     {item.bet.claimed ? (
                         <div className="mt-2 text-center text-xs text-green-400 font-bold bg-green-900/20 py-1 rounded">✅ Paid Out</div>
                     ) : (
-                        item.market.status !== 'active' && <ClaimButton marketId={item.market.market_id} onSuccess={() => { onRefresh(); refetch(); }} />
+                        (item.market.status !== 'active' || item.isExpired) && 
+                        <ClaimButton marketId={item.market.market_id} onSuccess={() => { onRefresh(); refetch(); }} />
                     )}
                 </div>
             ))}
