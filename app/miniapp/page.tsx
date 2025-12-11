@@ -633,8 +633,8 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
     const { writeContractAsync, data: hash } = useWriteContract(); // For Admin Resolve
     
     // 1. Prepare contracts for Multicall
-    // ... (rest of hook remains same) ...
-    const { data: userBets, isLoading, refetch } = useReadContracts({
+    // A. Fetches user bets
+    const { data: userBets, isLoading: isLoadingBets, refetch: refetchBets } = useReadContracts({
         contracts: markets.map(m => ({
             address: CONTRACT_ADDRESS,
             abi: contractABI as any,
@@ -644,12 +644,22 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
         query: { enabled: isConnected && !!address && markets.length > 0 }
     });
 
+    // B. Fetch Latest Market State from Chain (for Sync)
+    const { data: chainMarkets, isLoading: isLoadingMarkets } = useReadContracts({
+        contracts: markets.map(m => ({
+            address: CONTRACT_ADDRESS,
+            abi: contractABI as any,
+            functionName: 'markets',
+            args: [BigInt(m.market_id)]
+        })),
+        query: { enabled: markets.length > 0, refetchInterval: 10000 } // Poll every 10s for updates
+    });
+
     if (!isConnected) {
         return (
             <div className="text-center py-20">
                 <div className="text-6xl mb-4">👛</div>
                 <h2 className="text-xl font-bold mb-2">Connect Your Wallet</h2>
-                {/* Standard Connect Button via SDK/Wagmi usually handled implicitly or via dedicated button */}
                 <p className="text-zinc-400 mb-6 font-medium">Connect to view your betting history.</p>
                 <div className="p-4 bg-zinc-900 rounded-xl border border-zinc-800 text-xs text-zinc-500">
                     Use the "Connect Wallet" button in the top bar.
@@ -658,7 +668,7 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
         );
     }
 
-    if (isLoading) {
+    if (isLoadingBets || isLoadingMarkets) {
         return (
             <div className="space-y-4">
                 {[1, 2].map(i => <div key={i} className="h-32 bg-zinc-900/50 rounded-2xl animate-pulse" />)}
@@ -666,43 +676,46 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
         );
     }
 
-    // 3. Calculate Notification (Unclaimed Winnings)
-    // To do this efficiently without re-fetching all bets, we might need a separate query or context.
-    // For MVP, we can just check if any of the *currently loaded* markets in MyBets are resolved + unclaimed + won.
-    // But `MyBetsSection` is a child. We need to lift state or pass a callback.
-    // Or just make the "My Bets" tab text dynamic inside MarketHubContent?
-    // It's cleaner to just do it inside MyBetsSection if we move the Tabs inside? No tabs are in parent.
-    // Let's create a simple prop `onHasClaims` passed to MyBetsSection?
-    // But we need the glow even when NOT on the tab... that implies fetching user bets in the parent.
-    // That's expensive.
-    // ALTERNATIVE: Just glow when ON the tab for now? "History tab glow yellow IF user has a claim"
-    // The user said "History tab", implying the SUB-tab inside "My Bets"?
-    // "make the History tab glow yellow ... IF and only if the user has a claim"
-    // `MyBetsSection` has sub-tabs: Active / History / All.
-    // So yes, we can do it inside `MyBetsSection`.
-
-    // We need to calculate `hasClaims` from `filteredBets` (but filteredBets depends on filter...)
-    // Actually we need to check ALL bets.
-    
-    // Let's refactor: Calculate `allMyBets` first, then filter for display.
+    // 2. Data Calculation & Auto-Heal
     const allMyBets = markets.map((market, index) => {
         const betData = userBets?.[index]?.result as any;
+        const chainMarketData = chainMarkets?.[index]?.result as any;
+
         if (!betData) return null;
         if (betData.moonAmount === 0n && betData.doomAmount === 0n) return null;
         
-        const isExpired = new Date(market.deadline).getTime() < Date.now();
-        const isResolved = market.status !== 'active'; // Strict resolution
-        // Winner logic:
-        // We need outcome. IF market.status is 'resolved_moon' etc.
-        // We lack outcome data in `MarketIndex`. 
-        // We will assume if `!claimed` and `resolved` and `bet > 0`, might be claimable.
-        // But we don't know if won.
-        // Wait, `claimWinnings` reverts if lost.
-        // We can't know for sure without outcome. 
-        // MVP: Glow if `resolved` and `!claimed`. (User might have lost, but they should check).
+        // Chain Data:
+        // struct Market { ..., outcome (8), resolved (9), ... }
+        // Verify index 9 is resolved logic from previous analysis or use Safe Check
+        const chainResolved = chainMarketData ? chainMarketData[9] : false;
         
-        return { market, bet: betData, isExpired, isResolved };
+        // Auto-Sync Trigger: Chain says Resolved, DB says Active
+        const needsSync = chainResolved && market.status === 'active';
+        
+        // Use Chain status for UI if available (Optimistic), else DB
+        const isResolved = chainResolved || market.status !== 'active';
+        const isExpired = new Date(market.deadline).getTime() < Date.now();
+
+        return { market, bet: betData, isExpired, isResolved, needsSync, chainResolved };
     }).filter(item => item !== null);
+
+    // Effect: Trigger Sync for stale markets
+    useEffect(() => {
+        const staleMarkets = allMyBets.filter(m => m?.needsSync);
+        if (staleMarkets.length > 0) {
+            console.log(`[AutoSync] Healing ${staleMarkets.length} stale markets...`);
+            staleMarkets.forEach(m => {
+                fetch('/api/sync/resolution', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ marketId: m?.market.market_id })
+                }).then(() => {
+                    console.log(`[AutoSync] Synced Market ${m?.market.market_id}`);
+                    onRefresh(); // Refresh DB data
+                }).catch(err => console.error(err));
+            });
+        }
+    }, [allMyBets.length]); // Dep on length to avoid loops, or use ref to track triggered IDs
 
     const hasPotentialClaims = allMyBets.some(item => 
         item && item.isResolved && !item.bet.claimed
@@ -753,7 +766,7 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
                 </div>
             ) : ( 
                <div className="text-right mb-2">
-                   <button onClick={() => { onRefresh(); refetch(); }} className="text-xs text-zinc-500 hover:text-white flex items-center gap-1 ml-auto">
+                   <button onClick={() => { onRefresh(); refetchBets(); }} className="text-xs text-zinc-500 hover:text-white flex items-center gap-1 ml-auto">
                        🔄 Refresh Data
                    </button>
                </div>
@@ -761,17 +774,10 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
 
             {filteredBets.map((item: any) => {
                 // Determine if Claimable
-                // Logic: Must be RESOLVED or CANCELLED.
-                // Won if: (Outcome==MOON & betMoon>0) OR (Outcome==DOOM & betDoom>0) OR (Outcome==CANCELLED)
-                // Outcome enum: 0=Unresolved, 1=Moon, 2=Doom, 3=Cancelled
-                // We don't have outcome in `MarketIndex`... 
-                // Wait, Supabase only has `status`. SimplePredictionMarket has `outcome` but we didn't fetch it here...
-                // We rely on 'status' from DB. 'active' | 'resolved_moon' | 'resolved_doom' | 'admin_cancelled'?
-                // Actually `status` in DB schema is string. But to check if we WON, we need to know the result.
-                // If status is 'active' (even if expired), we CANNOT claim.
+                // Logic: Must be RESOLVED on Chain OR DB.
                 
-                const isResolved = item.market.status !== 'active';
-                const isPending = item.market.status === 'active' && item.isExpired;
+                const isResolved = item.isResolved; // Calculated above
+                const isPending = !isResolved && item.isExpired;
 
                 return (
                 <div key={item.market.market_id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden">
@@ -783,7 +789,7 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
                         </div>
                         <div className="flex flex-col items-end gap-1">
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${!isResolved && !item.isExpired ? 'bg-green-900 text-green-400' : (isPending ? 'bg-yellow-900/40 text-yellow-500 border border-yellow-500/30' : 'bg-zinc-700 text-zinc-400')}`}>
-                                {isPending ? '⏳ PENDING RESOLUTION' : item.market.status.toUpperCase()}
+                                {isPending ? '⏳ PENDING RESOLUTION' : (item.market.status === 'active' && isResolved ? 'RESOLVED (SYNCING...)' : item.market.status.toUpperCase())}
                             </span>
                         </div>
                     </div>
@@ -809,10 +815,10 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
 
                     {/* Actions */}
                     {item.bet.claimed ? (
-                        <div className="mt-2 text-center text-xs text-green-400 font-bold bg-green-900/20 py-2 rounded border border-green-500/20">✅ Paid Out</div>
+                        <div className="mt-2 text-center text-xs text-green-400 font-bold bg-green-900/20 py-2 rounded border border-green-500/20">✅ Winnings Claimed</div>
                     ) : (
                         <>
-                            {isResolved && <ClaimButton marketId={item.market.market_id} onSuccess={() => { onRefresh(); refetch(); }} />}
+                            {isResolved && <ClaimButton marketId={item.market.market_id} onSuccess={() => { onRefresh(); refetchBets(); }} />}
                             
                             {isPending && (
                                 <div className="text-center bg-zinc-950/50 p-3 rounded-lg border border-zinc-800">

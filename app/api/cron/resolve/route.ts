@@ -139,7 +139,19 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        return NextResponse.json({ success: true, results });
+        // 5. Prune Old Markets (> 30 Days Past Deadline)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const { error: pruneError, count } = await supabase
+            .from('market_index')
+            .delete({ count: 'exact' })
+            .lt('deadline', thirtyDaysAgo.toISOString());
+
+        if (pruneError) console.error('Pruning Failed:', pruneError);
+        else if (count && count > 0) console.log(`Pruned ${count} old markets.`);
+
+        return NextResponse.json({ success: true, results, pruned: count });
 
     } catch (error: any) {
         console.error('Cron job failed:', error);
