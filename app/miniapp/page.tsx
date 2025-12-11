@@ -445,12 +445,12 @@ function MarketHubContent() {
                             />
                             <button onClick={() => fetchMarkets()} className="bg-zinc-900 px-3 rounded-xl border border-zinc-800">🔄</button>
                         </div>
-
-                        <div className="flex gap-2 text-xs">
-                            <button onClick={() => setFilter('active')} className={`px-3 py-1.5 rounded-lg border ${filter === 'active' ? 'bg-green-900/30 border-green-500 text-green-300' : 'border-zinc-800 text-zinc-500'}`}>Active</button>
-                            <button onClick={() => setFilter('resolved')} className={`px-3 py-1.5 rounded-lg border ${filter === 'resolved' ? 'bg-zinc-800 border-zinc-600 text-zinc-300' : 'border-zinc-800 text-zinc-500'}`}>Resolved</button>
-                            <button onClick={() => setFilter('all')} className={`px-3 py-1.5 rounded-lg border ${filter === 'all' ? 'bg-purple-900/30 border-purple-500 text-purple-300' : 'border-zinc-800 text-zinc-500'}`}>All</button>
+                        <div className="mb-6">
+                        {/* Tabs Removed as requested - Defaulting to Active view logic which is implied by 'active' state init */}
                         </div>
+
+                        {/* Tabs Removed */}
+
 
                         {loading ? (
                             <div className="animate-pulse space-y-4">
@@ -630,6 +630,11 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
     isAdmin: boolean;
 }) {
     const [filter, setFilter] = useState<'active' | 'resolved' | 'all'>('active');
+    
+    // Hydration Fix: Ensure strictly client-side rendering for time-dependent logic
+    const [isMounted, setIsMounted] = useState(false);
+    useEffect(() => setIsMounted(true), []);
+
     const { writeContractAsync, data: hash } = useWriteContract(); // For Admin Resolve
     
     // 1. Prepare contracts for Multicall
@@ -654,6 +659,8 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
         })),
         query: { enabled: markets.length > 0, refetchInterval: 10000 } // Poll every 10s for updates
     });
+
+    if (!isMounted) return null; // Prevent hydration mismatch by deferring render
 
     if (!isConnected) {
         return (
