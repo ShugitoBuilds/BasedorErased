@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
-import { WagmiProvider, useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, useBalance } from 'wagmi';
+import { WagmiProvider, useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, useBalance, usePublicClient } from 'wagmi';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { config } from '@/lib/wagmi';
 import { sdk } from '@farcaster/miniapp-sdk';
@@ -622,6 +622,7 @@ function GuideSection() {
     );
 }
 
+// Safe MyBetsSection with Manual Fetching to avoid Hook/Hydration issues
 function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
     markets: MarketIndex[];
     address: string | undefined;
@@ -629,114 +630,99 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
     onRefresh: () => void;
     isAdmin: boolean;
 }) {
-    const [filter, setFilter] = useState<'active' | 'resolved' | 'all'>('active');
+    // State
+    const [detailedBets, setDetailedBets] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
     
-    // Hydration Fix: Ensure strictly client-side rendering for time-dependent logic
-    const [isMounted, setIsMounted] = useState(false);
-    useEffect(() => setIsMounted(true), []);
+    // Hooks
+    const publicClient = usePublicClient();
+    const { writeContractAsync } = useWriteContract(); 
 
-    const { writeContractAsync, data: hash } = useWriteContract(); // For Admin Resolve
-    
-    // 1. Prepare contracts for Multicall
-    // A. Fetches user bets
-    const { data: userBets, isLoading: isLoadingBets, refetch: refetchBets } = useReadContracts({
-        contracts: markets.map(m => ({
-            address: CONTRACT_ADDRESS,
-            abi: contractABI as any,
-            functionName: 'getUserBet',
-            args: address ? [BigInt(m.market_id), address] : undefined
-        })),
-        query: { enabled: isConnected && !!address && markets.length > 0 }
-    });
-
-    // B. Fetch Latest Market State from Chain (for Sync)
-    const { data: chainMarkets, isLoading: isLoadingMarkets } = useReadContracts({
-        contracts: markets.map(m => ({
-            address: CONTRACT_ADDRESS,
-            abi: contractABI as any,
-            functionName: 'markets',
-            args: [BigInt(m.market_id)]
-        })),
-        query: { enabled: markets.length > 0, refetchInterval: 10000 } // Poll every 10s for updates
-    });
-
-    if (!isMounted) return null; // Prevent hydration mismatch by deferring render
-
-    if (!isConnected) {
-        return (
-            <div className="text-center py-20">
-                <div className="text-6xl mb-4">👛</div>
-                <h2 className="text-xl font-bold mb-2">Connect Your Wallet</h2>
-                <p className="text-zinc-400 mb-6 font-medium">Connect to view your betting history.</p>
-                <div className="p-4 bg-zinc-900 rounded-xl border border-zinc-800 text-xs text-zinc-500">
-                    Use the "Connect Wallet" button in the top bar.
-                </div>
-            </div>
-        );
-    }
-
-    if (isLoadingBets || isLoadingMarkets) {
-        return (
-            <div className="space-y-4">
-                {[1, 2].map(i => <div key={i} className="h-32 bg-zinc-900/50 rounded-2xl animate-pulse" />)}
-            </div>
-        );
-    }
-
-    // 2. Data Calculation & Auto-Heal
-    const allMyBets = markets.map((market, index) => {
-        const betData = userBets?.[index]?.result as any;
-        const chainMarketData = chainMarkets?.[index]?.result as any;
-
-        if (!betData) return null;
-        if (betData.moonAmount === 0n && betData.doomAmount === 0n) return null;
-        
-        // Chain Data:
-        // struct Market { ..., outcome (8), resolved (9), ... }
-        // Verify index 9 is resolved logic from previous analysis or use Safe Check
-        const chainResolved = chainMarketData ? chainMarketData[9] : false;
-        
-        // Auto-Sync Trigger: Chain says Resolved, DB says Active
-        const needsSync = chainResolved && market.status === 'active';
-        
-        // Use Chain status for UI if available (Optimistic), else DB
-        const isResolved = chainResolved || market.status !== 'active';
-        const isExpired = new Date(market.deadline).getTime() < Date.now();
-
-        return { market, bet: betData, isExpired, isResolved, needsSync, chainResolved };
-    }).filter(item => item !== null);
-
-    // Effect: Trigger Sync for stale markets
+    // Manual Fetch Effect
     useEffect(() => {
-        const staleMarkets = allMyBets.filter(m => m?.needsSync);
-        if (staleMarkets.length > 0) {
-            console.log(`[AutoSync] Healing ${staleMarkets.length} stale markets...`);
-            staleMarkets.forEach(m => {
-                fetch('/api/sync/resolution', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ marketId: m?.market.market_id })
-                }).then(() => {
-                    console.log(`[AutoSync] Synced Market ${m?.market.market_id}`);
-                    onRefresh(); // Refresh DB data
-                }).catch(err => console.error(err));
-            });
+        if (!isConnected || !address || markets.length === 0 || !publicClient) {
+            setLoading(false);
+            return;
         }
-    }, [allMyBets.length]); // Dep on length to avoid loops, or use ref to track triggered IDs
 
-    const hasPotentialClaims = allMyBets.some(item => 
-        item && item.isResolved && !item.bet.claimed
-    );
+        let mounted = true;
 
-    const filteredBets = allMyBets.filter(item => {
-        if (!item) return false;
-        const isResolvedOrExpired = item.isResolved || item.isExpired;
-        if (filter === 'active' && isResolvedOrExpired) return false;
-        if (filter === 'resolved' && !isResolvedOrExpired) return false;
-        return true;
-    });
+        async function fetchData() {
+            try {
+                setLoading(true);
+                const calls: any[] = [];
+                
+                // 1. User Bets
+                markets.forEach(m => calls.push({
+                    address: CONTRACT_ADDRESS,
+                    abi: contractABI,
+                    functionName: 'getUserBet',
+                    args: [BigInt(m.market_id), address]
+                }));
 
-    // ADMIN: Resolve Expired Market
+                // 2. Market State
+                markets.forEach(m => calls.push({
+                    address: CONTRACT_ADDRESS,
+                    abi: contractABI,
+                    functionName: 'markets',
+                    args: [BigInt(m.market_id)]
+                }));
+
+                const results = await publicClient!.multicall({ contracts: calls });
+                
+                // Process Results
+                const betResults = results.slice(0, markets.length);
+                const marketResults = results.slice(markets.length);
+
+                const processed = markets.map((market, index) => {
+                    const betRes = betResults[index];
+                    const marketRes = marketResults[index];
+
+                    if (betRes.status === 'failure' || !betRes.result) return null;
+                    const betData = betRes.result as any;
+                    
+                    if (betData.moonAmount === 0n && betData.doomAmount === 0n) return null;
+
+                    // Chain Data
+                    const chainMarketData = (marketRes.status === 'success') ? marketRes.result as any : null;
+                    const chainResolved = chainMarketData ? chainMarketData[9] : false;
+
+                    const needSync = chainResolved && market.status === 'active';
+                    const isResolved = chainResolved || market.status !== 'active';
+                    const isExpired = new Date(market.deadline).getTime() < Date.now();
+
+                    return { market, bet: betData, isExpired, isResolved, needSync, chainResolved };
+                }).filter(item => item !== null);
+
+                if (mounted) {
+                    setDetailedBets(processed);
+                    
+                    // Auto-Heal Trigger
+                    const stale = processed.filter(p => p?.needSync);
+                    if (stale.length > 0) {
+                        console.log(`[AutoSync] Healing ${stale.length} markets...`);
+                        stale.forEach(m => {
+                             fetch('/api/sync/resolution', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ marketId: m?.market.market_id })
+                            }).then(() => onRefresh()).catch(e => console.error(e));
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching bets:", err);
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        }
+
+        fetchData();
+
+        return () => { mounted = false; };
+    }, [markets, address, isConnected, publicClient]);
+
+    // Admin Resolve
     const executeResolve = async (marketId: number, outcome: number) => {
         try {
             await writeContractAsync({
@@ -745,104 +731,98 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
                 functionName: 'resolveMarket',
                 args: [BigInt(marketId), outcome],
             });
+            onRefresh();
         } catch (err: any) {
             console.error(err);
         }
     };
 
-    return (
-        <div className="space-y-4">
-            <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-bold">Your Bets</h2>
-                <div className="flex gap-2 text-xs">
-                     <button onClick={() => setFilter('active')} className={`px-2 py-1 rounded border ${filter === 'active' ? 'bg-green-900/30 border-green-500 text-green-300' : 'border-zinc-800 text-zinc-500'}`}>Active</button>
-                     <button 
-                        onClick={() => setFilter('resolved')} 
-                        className={`px-2 py-1 rounded border relative ${filter === 'resolved' ? 'bg-zinc-800 border-zinc-600 text-zinc-300' : 'border-zinc-800 text-zinc-500'} ${hasPotentialClaims ? 'shadow-[0_0_10px_rgba(234,179,8,0.5)] border-yellow-500/50 text-yellow-500' : ''}`}
-                     >
-                        History
-                        {hasPotentialClaims && <span className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />}
-                     </button>
-                     <button onClick={() => setFilter('all')} className={`px-2 py-1 rounded border ${filter === 'all' ? 'bg-purple-900/30 border-purple-500 text-purple-300' : 'border-zinc-800 text-zinc-500'}`}>All</button>
-                </div>
+    if (!isConnected) {
+        return (
+            <div className="text-center py-20">
+                <div className="text-6xl mb-4">👛</div>
+                <h2 className="text-xl font-bold mb-2">Connect Your Wallet</h2>
+                <p className="text-zinc-400 mb-6 font-medium">Connect to view your betting history.</p>
             </div>
-            
-            {filteredBets.length === 0 ? (
-                <div className="text-center py-10 bg-zinc-900/30 rounded-2xl border border-zinc-800/50">
-                    <p className="text-zinc-500 text-sm">No bets found.</p>
+        );
+    }
+
+    if (loading) {
+         return <div className="space-y-4">{[1, 2].map(i => <div key={i} className="h-32 bg-zinc-900/50 rounded-2xl animate-pulse" />)}</div>;
+    }
+
+    if (detailedBets.length === 0) {
+        return <div className="text-center py-20 text-zinc-500">No active bets found.</div>;
+    }
+
+    const hasPotentialClaims = detailedBets.some(item => item && item.isResolved && !item.bet.claimed);
+
+    return (
+        <div>
+            {/* Header / Stats */}
+            <div className="mb-4 p-4 bg-zinc-900 rounded-xl border border-zinc-800 flex justify-between items-center">
+                <div>
+                   <h3 className="text-zinc-400 text-xs font-bold uppercase">My Active Bets</h3>
+                   <p className="text-2xl font-bold text-white">{detailedBets.length}</p>
                 </div>
-            ) : ( 
-               <div className="text-right mb-2">
-                   <button onClick={() => { onRefresh(); refetchBets(); }} className="text-xs text-zinc-500 hover:text-white flex items-center gap-1 ml-auto">
-                       🔄 Refresh Data
-                   </button>
-               </div>
-            )}
+                {hasPotentialClaims && (
+                     <div className="px-3 py-1 bg-yellow-900/30 text-yellow-400 border border-yellow-600 rounded-lg text-xs font-bold animate-pulse">
+                        ⚠️ Winnings Available
+                     </div>
+                )}
+            </div>
 
-            {filteredBets.map((item: any) => {
-                // Determine if Claimable
-                // Logic: Must be RESOLVED on Chain OR DB.
-                
-                const isResolved = item.isResolved; // Calculated above
-                const isPending = !isResolved && item.isExpired;
+            <div className="space-y-4">
+                {detailedBets.map((item: any) => (
+                    <div key={item.market.market_id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+                        <Link href={`/miniapp/market/${item.market.market_id}`} className="block mb-3">
+                             <div className="text-xs text-zinc-500 mb-1">#{item.market.market_id} • @{item.market.author_username}</div>
+                             <p className="text-zinc-200 text-sm font-medium line-clamp-2 hover:text-purple-400 transition-colors">{item.market.cast_text}</p>
+                        </Link>
 
-                return (
-                <div key={item.market.market_id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden">
-                    {/* Status Badge */}
-                    <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2">
-                            <img src={item.market.author_pfp_url} className="w-6 h-6 rounded-full" />
-                            <span className="font-bold text-sm">@{item.market.author_username}</span>
+                        <div className="grid grid-cols-2 gap-2 mb-3 bg-zinc-950 rounded-lg p-2 border border-zinc-800">
+                             <div className="text-center">
+                                 <div className="text-[10px] text-zinc-500">YOU BET</div>
+                                 <div className="font-bold text-white">{item.bet.moonAmount > 0n ? 'YES (BASED)' : 'NO (ERASED)'}</div>
+                             </div>
+                             <div className="text-center border-l border-zinc-800">
+                                 <div className="text-[10px] text-zinc-500">AMOUNT</div>
+                                 <div className="font-bold text-purple-400">{formatUSDC(item.bet.moonAmount > 0n ? item.bet.moonAmount : item.bet.doomAmount)} USDC</div>
+                             </div>
                         </div>
-                        <div className="flex flex-col items-end gap-1">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${!isResolved && !item.isExpired ? 'bg-green-900 text-green-400' : (isPending ? 'bg-yellow-900/40 text-yellow-500 border border-yellow-500/30' : 'bg-zinc-700 text-zinc-400')}`}>
-                                {isPending ? '⏳ PENDING RESOLUTION' : (item.market.status === 'active' && isResolved ? 'RESOLVED (SYNCING...)' : item.market.status.toUpperCase())}
-                            </span>
-                        </div>
-                    </div>
 
-                    <Link href={`/miniapp?marketId=${item.market.market_id}`} className="block mb-4 hover:opacity-80 transition-opacity">
-                        <p className="text-zinc-300 text-sm line-clamp-2">{item.market.cast_text}</p>
-                    </Link>
-
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                        {item.bet.moonAmount > 0n && (
-                            <div className="bg-green-900/10 border border-green-500/20 rounded-lg p-2 flex justify-between items-center">
-                                <span className="text-xs font-bold text-green-500">BASED</span>
-                                <span className="font-mono text-sm font-bold">{formatUSDC(item.bet.moonAmount)}</span>
-                            </div>
+                        {/* Status / Claim */}
+                        {item.bet.claimed ? (
+                             <div className="mt-2 text-center text-xs text-green-400 font-bold bg-green-900/20 py-2 rounded border border-green-500/20">✅ Winnings Claimed</div>
+                        ) : (
+                            <>
+                                {item.isResolved ? (
+                                     <ClaimButton marketId={item.market.market_id} onSuccess={() => { onRefresh(); }} />
+                                ) : (
+                                    <div className="text-center bg-zinc-950/50 p-3 rounded-lg border border-zinc-800">
+                                         {item.isExpired ? (
+                                             <div className="space-y-2">
+                                                 <p className="text-xs text-zinc-400">⏳ PENDING RESOLUTION (Wait for Oracle)</p>
+                                                 {isAdmin && (
+                                                     <div className="flex gap-2 justify-center pt-2 border-t border-zinc-800">
+                                                         <button onClick={() => executeResolve(item.market.market_id, 1)} className="bg-green-900/50 text-green-400 hover:bg-green-900 border border-green-800 text-[10px] px-2 py-1 rounded">Force BASED</button>
+                                                         <button onClick={() => executeResolve(item.market.market_id, 2)} className="bg-red-900/50 text-red-400 hover:bg-red-900 border border-red-800 text-[10px] px-2 py-1 rounded">Force ERASED</button>
+                                                     </div>
+                                                 )}
+                                             </div>
+                                         ) : (
+                                             <div className="flex justify-between items-center text-xs">
+                                                  <span className="text-green-400 animate-pulse">● LIVE</span>
+                                                  <span className="text-zinc-500"><Countdown deadline={item.market.deadline} /></span>
+                                             </div>
+                                         )}
+                                    </div>
+                                )}
+                            </>
                         )}
-                        {item.bet.doomAmount > 0n && (
-                            <div className="bg-red-900/10 border border-red-500/20 rounded-lg p-2 flex justify-between items-center">
-                                <span className="text-xs font-bold text-red-500">ERASED</span>
-                                <span className="font-mono text-sm font-bold">{formatUSDC(item.bet.doomAmount)}</span>
-                            </div>
-                        )}
                     </div>
-
-                    {/* Actions */}
-                    {item.bet.claimed ? (
-                        <div className="mt-2 text-center text-xs text-green-400 font-bold bg-green-900/20 py-2 rounded border border-green-500/20">✅ Winnings Claimed</div>
-                    ) : (
-                        <>
-                            {isResolved && <ClaimButton marketId={item.market.market_id} onSuccess={() => { onRefresh(); refetchBets(); }} />}
-                            
-                            {isPending && (
-                                <div className="text-center bg-zinc-950/50 p-3 rounded-lg border border-zinc-800">
-                                    <p className="text-xs text-zinc-400 mb-2">Market has ended. Waiting for result via Oracle/Admin.</p>
-                                    
-                                    {isAdmin && (
-                                        <div className="flex gap-2 justify-center mt-2 border-t border-zinc-800 pt-2">
-                                            <button onClick={() => executeResolve(item.market.market_id, 1)} className="bg-green-900/50 text-green-400 hover:bg-green-900 border border-green-800 text-[10px] px-2 py-1 rounded">Force BASED</button>
-                                            <button onClick={() => executeResolve(item.market.market_id, 2)} className="bg-red-900/50 text-red-400 hover:bg-red-900 border border-red-800 text-[10px] px-2 py-1 rounded">Force ERASED</button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
-            )})}
+                ))}
+            </div>
         </div>
     );
 }
@@ -857,3 +837,4 @@ export default function MarketHub() {
         </WagmiProvider>
     );
 }
+
