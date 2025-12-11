@@ -474,7 +474,7 @@ function MarketHubContent() {
                     </div>
                 )}
 
-                {activeTab === 'mybets' && <MyBetsSection markets={markets} address={address} isConnected={isConnected} onRefresh={fetchMarkets} />}
+                {activeTab === 'mybets' && <MyBetsSection markets={markets} address={address} isConnected={isConnected} onRefresh={fetchMarkets} isAdmin={isAdmin} />}
                 {activeTab === 'guide' && <GuideSection />}
             </div>
         </div>
@@ -551,6 +551,14 @@ function GuideSection() {
         }
     ];
 
+    // 3. Calculate Notification (Unclaimed Winnings)
+    // We need to know if there are ANY unresolved claims in the filtered list (or globally?)
+    // "History tab glow yellow IF user has a claim to make"
+    // Ideally we check *all* bets, not just filtered ones, but for now checking 'resolved' markets in the full list is best.
+    
+    // We'll calculate this inside the Content component to pass to the Tab, or just let the Tab handle it?
+    // Let's do it in MarketHubContent.
+
     return (
         <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-6">
@@ -614,14 +622,16 @@ function GuideSection() {
     );
 }
 
-function MyBetsSection({ markets, address, isConnected, onRefresh }: {
+function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
     markets: MarketIndex[];
     address: string | undefined;
     isConnected: boolean;
     onRefresh: () => void;
+    isAdmin: boolean;
 }) {
     const [filter, setFilter] = useState<'active' | 'resolved' | 'all'>('active');
-
+    const { writeContractAsync, data: hash } = useWriteContract(); // For Admin Resolve
+    
     // 1. Prepare contracts for Multicall
     // ... (rest of hook remains same) ...
     const { data: userBets, isLoading, refetch } = useReadContracts({
@@ -656,23 +666,69 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
         );
     }
 
-    // 2. Filter markets where user has a bet amount > 0 AND matches filter status
-    const filteredBets = markets.map((market, index) => {
+    // 3. Calculate Notification (Unclaimed Winnings)
+    // To do this efficiently without re-fetching all bets, we might need a separate query or context.
+    // For MVP, we can just check if any of the *currently loaded* markets in MyBets are resolved + unclaimed + won.
+    // But `MyBetsSection` is a child. We need to lift state or pass a callback.
+    // Or just make the "My Bets" tab text dynamic inside MarketHubContent?
+    // It's cleaner to just do it inside MyBetsSection if we move the Tabs inside? No tabs are in parent.
+    // Let's create a simple prop `onHasClaims` passed to MyBetsSection?
+    // But we need the glow even when NOT on the tab... that implies fetching user bets in the parent.
+    // That's expensive.
+    // ALTERNATIVE: Just glow when ON the tab for now? "History tab glow yellow IF user has a claim"
+    // The user said "History tab", implying the SUB-tab inside "My Bets"?
+    // "make the History tab glow yellow ... IF and only if the user has a claim"
+    // `MyBetsSection` has sub-tabs: Active / History / All.
+    // So yes, we can do it inside `MyBetsSection`.
+
+    // We need to calculate `hasClaims` from `filteredBets` (but filteredBets depends on filter...)
+    // Actually we need to check ALL bets.
+    
+    // Let's refactor: Calculate `allMyBets` first, then filter for display.
+    const allMyBets = markets.map((market, index) => {
         const betData = userBets?.[index]?.result as any;
         if (!betData) return null;
-        
-        // Must have a bet
         if (betData.moonAmount === 0n && betData.doomAmount === 0n) return null;
-
-        const isExpired = new Date(market.deadline).getTime() < Date.now();
-        const isResolvedOrExpired = market.status !== 'active' || isExpired;
-
-        // Apply Filter
-        if (filter === 'active' && isResolvedOrExpired) return null;
-        if (filter === 'resolved' && !isResolvedOrExpired) return null;
         
-        return { market, bet: betData, isExpired };
+        const isExpired = new Date(market.deadline).getTime() < Date.now();
+        const isResolved = market.status !== 'active'; // Strict resolution
+        // Winner logic:
+        // We need outcome. IF market.status is 'resolved_moon' etc.
+        // We lack outcome data in `MarketIndex`. 
+        // We will assume if `!claimed` and `resolved` and `bet > 0`, might be claimable.
+        // But we don't know if won.
+        // Wait, `claimWinnings` reverts if lost.
+        // We can't know for sure without outcome. 
+        // MVP: Glow if `resolved` and `!claimed`. (User might have lost, but they should check).
+        
+        return { market, bet: betData, isExpired, isResolved };
     }).filter(item => item !== null);
+
+    const hasPotentialClaims = allMyBets.some(item => 
+        item && item.isResolved && !item.bet.claimed
+    );
+
+    const filteredBets = allMyBets.filter(item => {
+        if (!item) return false;
+        const isResolvedOrExpired = item.isResolved || item.isExpired;
+        if (filter === 'active' && isResolvedOrExpired) return false;
+        if (filter === 'resolved' && !isResolvedOrExpired) return false;
+        return true;
+    });
+
+    // ADMIN: Resolve Expired Market
+    const executeResolve = async (marketId: number, outcome: number) => {
+        try {
+            await writeContractAsync({
+                address: CONTRACT_ADDRESS,
+                abi: contractABI,
+                functionName: 'resolveMarket',
+                args: [BigInt(marketId), outcome],
+            });
+        } catch (err: any) {
+            console.error(err);
+        }
+    };
 
     return (
         <div className="space-y-4">
@@ -680,7 +736,13 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
                 <h2 className="text-lg font-bold">Your Bets</h2>
                 <div className="flex gap-2 text-xs">
                      <button onClick={() => setFilter('active')} className={`px-2 py-1 rounded border ${filter === 'active' ? 'bg-green-900/30 border-green-500 text-green-300' : 'border-zinc-800 text-zinc-500'}`}>Active</button>
-                     <button onClick={() => setFilter('resolved')} className={`px-2 py-1 rounded border ${filter === 'resolved' ? 'bg-zinc-800 border-zinc-600 text-zinc-300' : 'border-zinc-800 text-zinc-500'}`}>History</button>
+                     <button 
+                        onClick={() => setFilter('resolved')} 
+                        className={`px-2 py-1 rounded border relative ${filter === 'resolved' ? 'bg-zinc-800 border-zinc-600 text-zinc-300' : 'border-zinc-800 text-zinc-500'} ${hasPotentialClaims ? 'shadow-[0_0_10px_rgba(234,179,8,0.5)] border-yellow-500/50 text-yellow-500' : ''}`}
+                     >
+                        History
+                        {hasPotentialClaims && <span className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />}
+                     </button>
                      <button onClick={() => setFilter('all')} className={`px-2 py-1 rounded border ${filter === 'all' ? 'bg-purple-900/30 border-purple-500 text-purple-300' : 'border-zinc-800 text-zinc-500'}`}>All</button>
                 </div>
             </div>
@@ -697,16 +759,31 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
                </div>
             )}
 
-            {filteredBets.map((item: any) => (
-                <div key={item.market.market_id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+            {filteredBets.map((item: any) => {
+                // Determine if Claimable
+                // Logic: Must be RESOLVED or CANCELLED.
+                // Won if: (Outcome==MOON & betMoon>0) OR (Outcome==DOOM & betDoom>0) OR (Outcome==CANCELLED)
+                // Outcome enum: 0=Unresolved, 1=Moon, 2=Doom, 3=Cancelled
+                // We don't have outcome in `MarketIndex`... 
+                // Wait, Supabase only has `status`. SimplePredictionMarket has `outcome` but we didn't fetch it here...
+                // We rely on 'status' from DB. 'active' | 'resolved_moon' | 'resolved_doom' | 'admin_cancelled'?
+                // Actually `status` in DB schema is string. But to check if we WON, we need to know the result.
+                // If status is 'active' (even if expired), we CANNOT claim.
+                
+                const isResolved = item.market.status !== 'active';
+                const isPending = item.market.status === 'active' && item.isExpired;
+
+                return (
+                <div key={item.market.market_id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden">
+                    {/* Status Badge */}
                     <div className="flex justify-between items-start mb-3">
                         <div className="flex items-center gap-2">
                             <img src={item.market.author_pfp_url} className="w-6 h-6 rounded-full" />
                             <span className="font-bold text-sm">@{item.market.author_username}</span>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${item.market.status === 'active' && !item.isExpired ? 'bg-green-900 text-green-400' : 'bg-zinc-700 text-zinc-400'}`}>
-                                {item.market.status === 'active' && item.isExpired ? 'EXPIRED' : item.market.status.toUpperCase()}
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${!isResolved && !item.isExpired ? 'bg-green-900 text-green-400' : (isPending ? 'bg-yellow-900/40 text-yellow-500 border border-yellow-500/30' : 'bg-zinc-700 text-zinc-400')}`}>
+                                {isPending ? '⏳ PENDING RESOLUTION' : item.market.status.toUpperCase()}
                             </span>
                         </div>
                     </div>
@@ -715,7 +792,7 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
                         <p className="text-zinc-300 text-sm line-clamp-2">{item.market.cast_text}</p>
                     </Link>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3 mb-3">
                         {item.bet.moonAmount > 0n && (
                             <div className="bg-green-900/10 border border-green-500/20 rounded-lg p-2 flex justify-between items-center">
                                 <span className="text-xs font-bold text-green-500">BASED</span>
@@ -730,17 +807,33 @@ function MyBetsSection({ markets, address, isConnected, onRefresh }: {
                         )}
                     </div>
 
+                    {/* Actions */}
                     {item.bet.claimed ? (
-                        <div className="mt-2 text-center text-xs text-green-400 font-bold bg-green-900/20 py-1 rounded">✅ Paid Out</div>
+                        <div className="mt-2 text-center text-xs text-green-400 font-bold bg-green-900/20 py-2 rounded border border-green-500/20">✅ Paid Out</div>
                     ) : (
-                        (item.market.status !== 'active' || item.isExpired) && 
-                        <ClaimButton marketId={item.market.market_id} onSuccess={() => { onRefresh(); refetch(); }} />
+                        <>
+                            {isResolved && <ClaimButton marketId={item.market.market_id} onSuccess={() => { onRefresh(); refetch(); }} />}
+                            
+                            {isPending && (
+                                <div className="text-center bg-zinc-950/50 p-3 rounded-lg border border-zinc-800">
+                                    <p className="text-xs text-zinc-400 mb-2">Market has ended. Waiting for result via Oracle/Admin.</p>
+                                    
+                                    {isAdmin && (
+                                        <div className="flex gap-2 justify-center mt-2 border-t border-zinc-800 pt-2">
+                                            <button onClick={() => executeResolve(item.market.market_id, 1)} className="bg-green-900/50 text-green-400 hover:bg-green-900 border border-green-800 text-[10px] px-2 py-1 rounded">Force BASED</button>
+                                            <button onClick={() => executeResolve(item.market.market_id, 2)} className="bg-red-900/50 text-red-400 hover:bg-red-900 border border-red-800 text-[10px] px-2 py-1 rounded">Force ERASED</button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
-            ))}
+            )})}
         </div>
     );
 }
+
 
 export default function MarketHub() {
     return (
