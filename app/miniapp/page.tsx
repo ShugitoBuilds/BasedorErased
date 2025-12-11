@@ -631,6 +631,7 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
     isAdmin: boolean;
 }) {
     // State
+    const [filter, setFilter] = useState<'active' | 'resolved'>('active');
     const [detailedBets, setDetailedBets] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     
@@ -695,7 +696,7 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
                 }).filter(item => item !== null);
 
                 if (mounted) {
-                    setDetailedBets(processed);
+                    setDetailedBets(processed as any[]);
                     
                     // Auto-Heal Trigger
                     const stale = processed.filter(p => p?.needSync);
@@ -706,7 +707,10 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ marketId: m?.market.market_id })
-                            }).then(() => onRefresh()).catch(e => console.error(e));
+                            }).then(() => {
+                                console.log('Synced:', m?.market.market_id);
+                                onRefresh();
+                            }).catch(e => console.error(e));
                         });
                     }
                 }
@@ -722,20 +726,7 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
         return () => { mounted = false; };
     }, [markets, address, isConnected, publicClient]);
 
-    // Admin Resolve
-    const executeResolve = async (marketId: number, outcome: number) => {
-        try {
-            await writeContractAsync({
-                address: CONTRACT_ADDRESS,
-                abi: contractABI,
-                functionName: 'resolveMarket',
-                args: [BigInt(marketId), outcome],
-            });
-            onRefresh();
-        } catch (err: any) {
-            console.error(err);
-        }
-    };
+    // NO ADMIN FUNCTIONS
 
     if (!isConnected) {
         return (
@@ -752,28 +743,50 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
     }
 
     if (detailedBets.length === 0) {
-        return <div className="text-center py-20 text-zinc-500">No active bets found.</div>;
+        return <div className="text-center py-20 text-zinc-500">No bets found. Place a bet to get started!</div>;
     }
 
     const hasPotentialClaims = detailedBets.some(item => item && item.isResolved && !item.bet.claimed);
 
+    const filteredBets = detailedBets.filter(item => {
+        if (!item) return false;
+        // History = Resolved OR Expired
+        const isHistory = item.isResolved || item.isExpired;
+        
+        if (filter === 'active') return !isHistory;
+        if (filter === 'resolved') return isHistory;
+        return true;
+    });
+
     return (
         <div>
-            {/* Header / Stats */}
-            <div className="mb-4 p-4 bg-zinc-900 rounded-xl border border-zinc-800 flex justify-between items-center">
-                <div>
-                   <h3 className="text-zinc-400 text-xs font-bold uppercase">My Active Bets</h3>
-                   <p className="text-2xl font-bold text-white">{detailedBets.length}</p>
-                </div>
-                {hasPotentialClaims && (
-                     <div className="px-3 py-1 bg-yellow-900/30 text-yellow-400 border border-yellow-600 rounded-lg text-xs font-bold animate-pulse">
-                        ⚠️ Winnings Available
-                     </div>
-                )}
+            {/* Tabs */}
+            <div className="bg-zinc-900 p-1 rounded-xl mb-6 flex gap-1 border border-zinc-800">
+                <button 
+                    onClick={() => setFilter('active')} 
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${filter === 'active' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-800/50'}`}
+                >
+                    Active Bets
+                </button>
+                <button 
+                    onClick={() => setFilter('resolved')} 
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all relative ${filter === 'resolved' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-800/50'} ${hasPotentialClaims ? 'animate-pulse text-yellow-500' : ''}`}
+                >
+                    History
+                    {hasPotentialClaims && (
+                        <span className="absolute top-1 right-2 flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+                        </span>
+                    )}
+                </button>
             </div>
 
+            {/* List */}
             <div className="space-y-4">
-                {detailedBets.map((item: any) => (
+                {filteredBets.length === 0 ? (
+                    <div className="text-center py-10 opacity-50 text-sm">No {filter} bets found.</div>
+                ) : filteredBets.map((item: any) => (
                     <div key={item.market.market_id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
                         <Link href={`/miniapp/market/${item.market.market_id}`} className="block mb-3">
                              <div className="text-xs text-zinc-500 mb-1">#{item.market.market_id} • @{item.market.author_username}</div>
@@ -803,12 +816,7 @@ function MyBetsSection({ markets, address, isConnected, onRefresh, isAdmin }: {
                                          {item.isExpired ? (
                                              <div className="space-y-2">
                                                  <p className="text-xs text-zinc-400">⏳ PENDING RESOLUTION (Wait for Oracle)</p>
-                                                 {isAdmin && (
-                                                     <div className="flex gap-2 justify-center pt-2 border-t border-zinc-800">
-                                                         <button onClick={() => executeResolve(item.market.market_id, 1)} className="bg-green-900/50 text-green-400 hover:bg-green-900 border border-green-800 text-[10px] px-2 py-1 rounded">Force BASED</button>
-                                                         <button onClick={() => executeResolve(item.market.market_id, 2)} className="bg-red-900/50 text-red-400 hover:bg-red-900 border border-red-800 text-[10px] px-2 py-1 rounded">Force ERASED</button>
-                                                     </div>
-                                                 )}
+                                                 {item.needSync && <p className="text-[10px] text-blue-400 animate-pulse">Syncing Chain Status...</p>}
                                              </div>
                                          ) : (
                                              <div className="flex justify-between items-center text-xs">
